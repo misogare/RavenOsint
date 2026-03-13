@@ -1,0 +1,20 @@
+[package]
+name        = "raven-storage"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default  = ["sqlite"]
+sqlite   = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]
+
+[dependencies]
+raven-core  = { workspace = true }
+sqlx        = { workspace = true }
+tokio       = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+chrono      = { workspace = true }
+uuid        = { workspace = true }
+tracing     = { workspace = true }
+async-trait = "0.1"

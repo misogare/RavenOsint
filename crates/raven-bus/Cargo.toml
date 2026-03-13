@@ -1,0 +1,11 @@
+[package]
+name        = "raven-bus"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+raven-core  = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }

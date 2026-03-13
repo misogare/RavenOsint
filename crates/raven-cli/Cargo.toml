@@ -1,0 +1,28 @@
+[package]
+name        = "raven-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "raven"
+path = "src/main.rs"
+
+[dependencies]
+raven-core    = { workspace = true }
+raven-bus     = { workspace = true }
+raven-scraper = { workspace = true }
+raven-agent   = { workspace = true }
+raven-llm     = { workspace = true }
+raven-storage = { workspace = true }
+raven-api     = { workspace = true }
+clap          = { workspace = true }
+tokio         = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+comfy-table   = { workspace = true }
+tracing       = { workspace = true }
+tracing-subscriber = { workspace = true }
+dotenvy       = { workspace = true }
+anyhow        = { workspace = true }
+chrono        = { workspace = true }
+uuid          = { workspace = true }

@@ -1,0 +1,14 @@
+[package]
+name        = "raven-llm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+raven-core   = { workspace = true }
+async-openai = { workspace = true }
+tera         = { workspace = true }
+tokio        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+tracing      = { workspace = true }
+async-trait  = "0.1"

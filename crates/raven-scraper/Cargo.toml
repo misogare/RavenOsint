@@ -1,0 +1,19 @@
+[package]
+name        = "raven-scraper"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+raven-core  = { workspace = true }
+tokio       = { workspace = true }
+reqwest     = { workspace = true }
+scraper     = { workspace = true }
+governor    = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+tracing     = { workspace = true }
+url         = { workspace = true }
+chrono      = { workspace = true }
+uuid        = { workspace = true }
+bytes       = { workspace = true }
+async-trait = "0.1"

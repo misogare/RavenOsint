@@ -1,0 +1,100 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/raven-core",
+    "crates/raven-bus",
+    "crates/raven-discovery",
+    "crates/raven-scraper",
+    "crates/raven-agent",
+    "crates/raven-llm",
+    "crates/raven-storage",
+    "crates/raven-api",
+    "crates/raven-cli",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2021"
+authors      = ["RavenOSINT Contributors"]
+license      = "MIT"
+repository   = "https://github.com/yourorg/raven-osint"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared dependency versions — all crates pin from here
+# ─────────────────────────────────────────────────────────────────────────────
+[workspace.dependencies]
+# Async runtime
+tokio        = { version = "1",  features = ["full"] }
+tokio-stream = { version = "0.1" }
+
+# HTTP / TLS
+reqwest      = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "socks"] }
+
+# Serialisation
+serde        = { version = "1", features = ["derive"] }
+serde_json   = { version = "1" }
+
+# Config
+figment      = { version = "0.10", features = ["toml", "env"] }
+toml         = { version = "0.8" }
+
+# Error handling
+thiserror    = { version = "1" }
+anyhow       = { version = "1" }
+
+# Logging / tracing
+tracing             = { version = "0.1" }
+tracing-subscriber  = { version = "0.3", features = ["env-filter", "json"] }
+
+# Rate limiting
+governor     = { version = "0.6" }
+
+# HTML parsing
+scraper      = { version = "0.20" }
+
+# Graph (agent DAG)
+petgraph     = { version = "0.6" }
+
+# LLM (used with DeepSeek base-url override)
+async-openai = { version = "0.27" }
+
+# Templating
+tera         = { version = "1" }
+
+# Database (feature-gated per crate)
+sqlx         = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "macros", "migrate"] }
+
+# Web framework
+axum                  = { version = "0.7", features = ["macros"] }
+tower                 = { version = "0.4" }
+tower-http            = { version = "0.5", features = ["cors", "trace", "limit"] }
+utoipa                = { version = "4", features = ["axum_extras"] }
+utoipa-swagger-ui     = { version = "7", features = ["axum"] }
+
+# CLI
+clap         = { version = "4", features = ["derive", "env"] }
+
+# Formatting
+comfy-table  = { version = "7" }
+
+# Utilities
+uuid         = { version = "1", features = ["v4", "serde"] }
+chrono       = { version = "0.4", features = ["serde"] }
+dotenvy      = { version = "0.15" }
+url          = { version = "2" }
+bytes        = { version = "1" }
+
+# Internal workspace crates
+raven-core    = { path = "crates/raven-core" }
+raven-bus     = { path = "crates/raven-bus" }
+raven-discovery = { path = "crates/raven-discovery" }
+raven-scraper = { path = "crates/raven-scraper" }
+raven-agent   = { path = "crates/raven-agent" }
+raven-llm     = { path = "crates/raven-llm" }
+raven-storage = { path = "crates/raven-storage" }
+raven-api     = { path = "crates/raven-api" }
+
+[profile.release]
+opt-level = 3
+lto       = "thin"
+strip     = true

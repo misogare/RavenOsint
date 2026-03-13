@@ -1,0 +1,25 @@
+[package]
+name        = "raven-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+raven-bus     = { workspace = true }
+raven-core    = { workspace = true }
+raven-discovery = { workspace = true }
+raven-scraper = { workspace = true }
+raven-agent   = { workspace = true }
+raven-llm     = { workspace = true }
+raven-storage = { workspace = true }
+axum          = { workspace = true }
+tower         = { workspace = true }
+tower-http    = { workspace = true }
+utoipa        = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
+tokio         = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+tracing       = { workspace = true }
+uuid          = { workspace = true }
+chrono        = { workspace = true }
+anyhow        = { workspace = true }

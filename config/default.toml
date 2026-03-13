@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# RavenOSINT — default configuration
+# Override any value with an environment variable:
+#   RAVEN__<SECTION>__<KEY>=value
+#   e.g. RAVEN__LLM__API_KEY=sk-...
+# ─────────────────────────────────────────────────────────────────────────────
+
+[database]
+# sqlite:// or postgres://
+url = "sqlite://raven.db"
+
+[scraper]
+# Requests per minute per domain
+rate_rpm          = 10
+timeout_secs      = 30
+max_redirects     = 10
+# Comma-separated User-Agent strings (cycled round-robin)
+user_agents = [
+    "Mozilla/5.0 (compatible; RavenOSINT/0.1; +https://github.com/yourorg/raven-osint)",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+]
+# Optional SOCKS5/HTTP proxies (empty = no proxy rotation)
+proxies = []
+
+[discovery]
+enabled = true
+default_provider = "serper"
+default_limit = 25
+max_limit = 100
+timeout_secs = 20
+rate_rpm = 30
+include_subdomains = true
+validate_by_default = false
+
+[discovery.serper]
+enabled = true
+base_url = "https://google.serper.dev/search"
+api_key = ""
+
+[discovery.exa]
+enabled = true
+base_url = "https://api.exa.ai/search"
+api_key = ""
+
+[discovery.censys]
+enabled = false
+base_url = "https://api.platform.censys.io/v3/global/"
+api_key = ""
+
+[discovery.virus_total]
+enabled = false
+base_url = "https://www.virustotal.com/api/v3"
+api_key = ""
+
+[llm]
+# DeepSeek API — set RAVEN__LLM__API_KEY in env, never commit real keys
+provider   = "deepseek"
+base_url   = "https://api.deepseek.com/v1"
+model      = "deepseek-chat"
+api_key    = ""          # overridden by env var
+max_tokens = 1024
+temperature = 0.2
+
+[api]
+host = "127.0.0.1"
+port = 3000
+
+[logging]
+# off | error | warn | info | debug | trace
+level  = "info"
+format = "pretty"   # pretty | json

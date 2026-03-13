@@ -1,0 +1,15 @@
+[package]
+name        = "raven-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+raven-core  = { workspace = true }
+tokio       = { workspace = true }
+petgraph    = { workspace = true }
+serde       = { workspace = true }
+tracing     = { workspace = true }
+chrono      = { workspace = true }
+uuid        = { workspace = true }
+url         = { workspace = true }
+async-trait = "0.1"
