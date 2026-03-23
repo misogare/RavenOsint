@@ -2407,6 +2407,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "futures",
  "raven-agent",
  "raven-bus",
  "raven-core",
