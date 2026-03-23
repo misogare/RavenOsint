@@ -17,7 +17,7 @@ version      = "0.1.0"
 edition      = "2021"
 authors      = ["RavenOSINT Contributors"]
 license      = "MIT"
-repository   = "https://github.com/yourorg/raven-osint"
+repository   = "https://github.com/misogare/ravenosint"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared dependency versions — all crates pin from here
@@ -26,6 +26,12 @@ repository   = "https://github.com/yourorg/raven-osint"
 # Async runtime
 tokio        = { version = "1",  features = ["full"] }
 tokio-stream = { version = "0.1" }
+
+# Async trait support — shared across all crates
+async-trait  = { version = "0.1" }
+
+# Concurrency utilities
+futures      = { version = "0.3" }
 
 # HTTP / TLS
 reqwest      = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "socks"] }
@@ -85,14 +91,14 @@ url          = { version = "2" }
 bytes        = { version = "1" }
 
 # Internal workspace crates
-raven-core    = { path = "crates/raven-core" }
-raven-bus     = { path = "crates/raven-bus" }
+raven-core      = { path = "crates/raven-core" }
+raven-bus       = { path = "crates/raven-bus" }
 raven-discovery = { path = "crates/raven-discovery" }
-raven-scraper = { path = "crates/raven-scraper" }
-raven-agent   = { path = "crates/raven-agent" }
-raven-llm     = { path = "crates/raven-llm" }
-raven-storage = { path = "crates/raven-storage" }
-raven-api     = { path = "crates/raven-api" }
+raven-scraper   = { path = "crates/raven-scraper" }
+raven-agent     = { path = "crates/raven-agent" }
+raven-llm       = { path = "crates/raven-llm" }
+raven-storage   = { path = "crates/raven-storage" }
+raven-api       = { path = "crates/raven-api" }
 
 [profile.release]
 opt-level = 3

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
+use futures::stream::{self, StreamExt};
 use raven_agent::{AgentOrchestrator, AvailabilityAgent, ContentAnalyzerAgent, SslAgent};
 use raven_bus::RavenBus;
 use raven_core::{
@@ -15,6 +16,15 @@ use raven_storage::ResultStore;
 use serde::Serialize;
 use tracing::warn;
 use utoipa::ToSchema;
+
+/// Number of discovered URLs validated concurrently when chained execution is
+/// requested.  Raising this speeds up large batches but increases outbound
+/// connections and memory pressure.  5 is a safe conservative default.
+const CONCURRENT_VALIDATIONS: usize = 5;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation pipeline
+// ─────────────────────────────────────────────────────────────────────────────
 
 pub struct PipelineRuntime {
     bus: RavenBus,
@@ -32,11 +42,12 @@ impl PipelineRuntime {
             .register(Arc::new(SslAgent))
             .register(Arc::new(ContentAnalyzerAgent));
 
-        let llm = if config.llm.provider.eq_ignore_ascii_case("deepseek") && !config.llm.api_key.is_empty() {
-            Some(DeepSeekProvider::new(&config.llm)?)
-        } else {
-            None
-        };
+        let llm =
+            if config.llm.provider.eq_ignore_ascii_case("deepseek") && !config.llm.api_key.is_empty() {
+                Some(DeepSeekProvider::new(&config.llm)?)
+            } else {
+                None
+            };
 
         Ok(Self {
             bus: RavenBus::new(),
@@ -74,7 +85,11 @@ impl PipelineRuntime {
                 match provider.verify(&ctx).await {
                     Ok(verdict) => verdict,
                     Err(error) => {
-                        warn!(job_id = %job_id, error = %error, "llm verification failed, falling back to heuristic verdict");
+                        warn!(
+                            job_id = %job_id,
+                            error = %error,
+                            "llm verification failed, falling back to heuristic verdict"
+                        );
                         fallback_verdict.clone()
                     }
                 }
@@ -93,8 +108,10 @@ impl PipelineRuntime {
                 llm_verdict.status.clone()
             };
 
-            let confidence = ((AgentOrchestrator::aggregate_confidence(&agent_reports, base_confidence(&scrape))
-                + llm_verdict.confidence)
+            let confidence = ((AgentOrchestrator::aggregate_confidence(
+                &agent_reports,
+                base_confidence(&scrape),
+            ) + llm_verdict.confidence)
                 / 2.0)
                 .clamp(0.0, 1.0);
 
@@ -134,6 +151,10 @@ impl PipelineRuntime {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Heuristic helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 fn base_confidence(scrape: &raven_core::ScraperOutput) -> f32 {
     match scrape.status_code {
         200..=299 => 0.55,
@@ -144,7 +165,10 @@ fn base_confidence(scrape: &raven_core::ScraperOutput) -> f32 {
     }
 }
 
-fn fallback_verdict(scrape: &raven_core::ScraperOutput, reports: &[raven_core::AgentReport]) -> LlmVerdict {
+fn fallback_verdict(
+    scrape: &raven_core::ScraperOutput,
+    reports: &[raven_core::AgentReport],
+) -> LlmVerdict {
     let failed = reports.iter().filter(|r| !r.passed).count();
     let content_failed = reports
         .iter()
@@ -172,6 +196,10 @@ fn fallback_verdict(scrape: &raven_core::ScraperOutput, reports: &[raven_core::A
         reasoning: "LLM verification unavailable; heuristic verdict derived from scraper and agent outputs.".into(),
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow runtime — composes discovery + validation
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DiscoveryWorkflowResult {
@@ -207,6 +235,15 @@ impl WorkflowRuntime {
         Ok(result)
     }
 
+    /// Discover URLs and optionally validate them concurrently.
+    ///
+    /// Validation is opt-in via `request.validate == true`.  When enabled,
+    /// discovered URLs are validated with bounded concurrency
+    /// (`CONCURRENT_VALIDATIONS` at a time) rather than sequentially, which
+    /// prevents a 25-URL batch from taking `25 × scrape_latency` wall time.
+    ///
+    /// Any individual validation failure is collected as an error and returned
+    /// in aggregate rather than aborting the entire batch.
     pub async fn discover_and_validate(
         &self,
         request: DiscoveryRequest,
@@ -217,10 +254,51 @@ impl WorkflowRuntime {
         let mut validations = Vec::new();
 
         if discovery.request.validate {
-            for url in &discovery.urls {
-                let target = discovered_to_target(url, discovery.job_id, &tags, &metadata);
-                validations.push(self.validate_target(target).await?);
+            let discovered_count = discovery.urls.len();
+            tracing::info!(
+                job_id = %discovery.job_id,
+                urls = discovered_count,
+                concurrency = CONCURRENT_VALIDATIONS,
+                "workflow: starting concurrent validation of discovered URLs"
+            );
+
+            // Build all targets up front so we can reference them in the stream.
+            let targets: Vec<OsintTarget> = discovery
+                .urls
+                .iter()
+                .map(|url| discovered_to_target(url, discovery.job_id, &tags, &metadata))
+                .collect();
+
+            // Validate up to CONCURRENT_VALIDATIONS targets at a time.
+            // `buffer_unordered` drives all futures concurrently but keeps at most
+            // CONCURRENT_VALIDATIONS in flight simultaneously.
+            let results: Vec<Result<ValidationResult, OsintError>> = stream::iter(targets)
+                .map(|target| self.validation.execute(target))
+                .buffer_unordered(CONCURRENT_VALIDATIONS)
+                .collect()
+                .await;
+
+            // Collect results; log individual failures but don't abort the batch.
+            for (i, result) in results.into_iter().enumerate() {
+                match result {
+                    Ok(v) => validations.push(v),
+                    Err(e) => {
+                        tracing::warn!(
+                            job_id = %discovery.job_id,
+                            url_index = i,
+                            error = %e,
+                            "workflow: validation failed for discovered URL, skipping"
+                        );
+                    }
+                }
             }
+
+            tracing::info!(
+                job_id = %discovery.job_id,
+                validated = validations.len(),
+                failed = discovered_count - validations.len(),
+                "workflow: concurrent validation complete"
+            );
         }
 
         Ok(DiscoveryWorkflowResult {
@@ -230,6 +308,10 @@ impl WorkflowRuntime {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 fn discovered_to_target(
     discovered: &DiscoveredUrl,
     discovery_job_id: uuid::Uuid,
@@ -238,9 +320,18 @@ fn discovered_to_target(
 ) -> OsintTarget {
     let mut merged_metadata = metadata.clone();
     merged_metadata.insert("discovery_job_id".into(), discovery_job_id.to_string());
-    merged_metadata.insert("discovery_provider".into(), format!("{:?}", discovered.provider).to_lowercase());
-    merged_metadata.insert("discovery_type".into(), format!("{:?}", discovered.discovery_type).to_lowercase());
-    merged_metadata.insert("discovery_source_query".into(), discovered.source_query.clone());
+    merged_metadata.insert(
+        "discovery_provider".into(),
+        format!("{:?}", discovered.provider).to_lowercase(),
+    );
+    merged_metadata.insert(
+        "discovery_type".into(),
+        format!("{:?}", discovered.discovery_type).to_lowercase(),
+    );
+    merged_metadata.insert(
+        "discovery_source_query".into(),
+        discovered.source_query.clone(),
+    );
 
     OsintTarget {
         id: uuid::Uuid::new_v4(),

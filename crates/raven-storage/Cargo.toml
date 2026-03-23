@@ -2,6 +2,8 @@
 name        = "raven-storage"
 version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [features]
 default  = ["sqlite"]
@@ -17,4 +19,4 @@ serde_json  = { workspace = true }
 chrono      = { workspace = true }
 uuid        = { workspace = true }
 tracing     = { workspace = true }
-async-trait = "0.1"
+async-trait = { workspace = true }

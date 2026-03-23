@@ -19,4 +19,4 @@ tracing     = { workspace = true }
 reqwest     = { workspace = true }
 anyhow      = { workspace = true }
 utoipa      = { workspace = true }
-async-trait = "0.1"
+async-trait = { workspace = true }

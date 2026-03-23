@@ -16,4 +16,5 @@ tracing     = { workspace = true }
 chrono      = { workspace = true }
 url         = { workspace = true }
 uuid        = { workspace = true }
-async-trait = "0.1"
+async-trait = { workspace = true }
+

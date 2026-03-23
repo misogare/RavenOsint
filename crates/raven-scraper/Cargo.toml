@@ -2,6 +2,8 @@
 name        = "raven-scraper"
 version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
 raven-core  = { workspace = true }
@@ -16,4 +18,4 @@ url         = { workspace = true }
 chrono      = { workspace = true }
 uuid        = { workspace = true }
 bytes       = { workspace = true }
-async-trait = "0.1"
+async-trait = { workspace = true }

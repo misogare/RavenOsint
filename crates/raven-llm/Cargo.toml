@@ -2,6 +2,8 @@
 name        = "raven-llm"
 version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
 raven-core   = { workspace = true }
@@ -11,4 +13,4 @@ tokio        = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 tracing      = { workspace = true }
-async-trait  = "0.1"
+async-trait  = { workspace = true }

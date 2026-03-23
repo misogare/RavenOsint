@@ -4,46 +4,49 @@ use scraper::{Html, Selector};
 
 /// Extract plain text from an HTML document.
 ///
-/// Removes `<script>` and `<style>` tags, then walks every remaining text node
-/// inside `<body>`, deduplicating whitespace.
+/// Skips any text node whose ancestor chain contains a `<script>`, `<style>`,
+/// or `<noscript>` element. This ancestor-check approach is correct and simple:
+/// no depth counters needed.
 pub fn extract_text(html: &str) -> String {
     let doc = Html::parse_document(html);
 
-    // Selectors are cheap to build; cache if this becomes a hot path.
     let body_sel = Selector::parse("body").unwrap();
 
     let body = match doc.select(&body_sel).next() {
         Some(b) => b,
-        None    => return strip_tags_fallback(html),
+        None => return strip_tags_fallback(html),
     };
 
     let mut out = String::with_capacity(html.len() / 4);
 
     for node in body.descendants() {
-        // Skip subtrees that are inside ignored elements.
-        if let Some(elem) = node.value().as_element() {
-            let tag = elem.name();
-            if matches!(tag, "script" | "style" | "noscript") {
-                continue;
-            }
+        // Only process text nodes — skip element/comment nodes entirely.
+        let text = match node.value().as_text() {
+            Some(t) => t,
+            None => continue,
+        };
+
+        // Check every ancestor: if any is a blocked tag, skip this text node.
+        let inside_blocked = node.ancestors().any(|ancestor| {
+            ancestor
+                .value()
+                .as_element()
+                .map(|e| matches!(e.name(), "script" | "style" | "noscript"))
+                .unwrap_or(false)
+        });
+
+        if inside_blocked {
+            continue;
         }
 
-        if let Some(text) = node.value().as_text() {
-            let trimmed = text.trim();
-            if !trimmed.is_empty() {
-                out.push_str(trimmed);
-                out.push(' ');
-            }
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            out.push_str(trimmed);
+            out.push(' ');
         }
     }
 
-    // Collapse repeated whitespace.
-    let collapsed: String = out
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    collapsed
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Fallback for pages with no `<body>` — strip all angle-bracket tags naively.
@@ -61,8 +64,6 @@ fn strip_tags_fallback(html: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 /// Determine whether the response body looks like JSON.
 pub fn is_json(content_type: &str) -> bool {
     content_type.contains("application/json") || content_type.contains("+json")
@@ -79,8 +80,6 @@ pub fn truncate(text: &str, max_chars: usize) -> String {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,9 +88,39 @@ mod tests {
     fn strips_scripts() {
         let html = r#"<html><body>Hello <script>bad()</script> World</body></html>"#;
         let text = extract_text(html);
-        assert!(text.contains("Hello"));
-        assert!(text.contains("World"));
-        assert!(!text.contains("bad()"));
+        assert!(text.contains("Hello"), "expected Hello in: {text}");
+        assert!(text.contains("World"), "expected World in: {text}");
+        assert!(!text.contains("bad()"), "script leaked into: {text}");
+    }
+
+    #[test]
+    fn strips_style_content() {
+        let html = r#"<html><body>Text <style>.bad{}</style> More</body></html>"#;
+        let text = extract_text(html);
+        assert!(text.contains("Text"), "expected Text in: {text}");
+        assert!(text.contains("More"), "expected More in: {text}");
+        assert!(!text.contains(".bad"), "style leaked into: {text}");
+    }
+
+    #[test]
+    fn strips_nested_script() {
+        let html = r#"<html><body><div>Visible <script><div>hidden()</div></script> end</div></body></html>"#;
+        let text = extract_text(html);
+        assert!(text.contains("Visible"), "expected Visible in: {text}");
+        assert!(text.contains("end"), "expected end in: {text}");
+        assert!(!text.contains("hidden()"), "nested script leaked into: {text}");
+    }
+
+    #[test]
+    fn empty_body_returns_empty() {
+        let html = r#"<html><body></body></html>"#;
+        assert!(extract_text(html).is_empty());
+    }
+
+    #[test]
+    fn no_body_uses_fallback() {
+        let html = r#"<p>Hello</p><script>bad()</script>"#;
+        assert!(extract_text(html).contains("Hello"));
     }
 
     #[test]
