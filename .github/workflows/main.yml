@@ -1,0 +1,149 @@
+name: Release
+
+# Only fires when you push a version tag like v1.0.0 or v1.2.3
+# Regular commits and PRs are completely ignored.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: raven
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Run tests first — if tests fail, no release is created
+  # ─────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run workspace tests
+        run: cargo test --workspace
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build release binaries for all three platforms
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build — ${{ matrix.os }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: raven-linux-x86_64
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: raven-windows-x86_64.exe
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: raven-macos-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} -p raven-cli
+
+      # Rename binary to include platform name before uploading
+      - name: Rename binary (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} \
+             ${{ matrix.artifact }}
+
+      - name: Rename binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe `
+             ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Create the GitHub release and attach all three binaries
+  # ─────────────────────────────────────────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create releases and upload assets
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: RavenOSINT ${{ github.ref_name }}
+          body: |
+            ## RavenOSINT ${{ github.ref_name }}
+
+            ### Download the right binary for your platform:
+
+            | Platform | File |
+            |---|---|
+            | Linux (x86_64) | `raven-linux-x86_64` |
+            | Windows (x86_64) | `raven-windows-x86_64.exe` |
+            | macOS (x86_64) | `raven-macos-x86_64` |
+
+            ### Quick start
+            ```bash
+            # Linux / macOS — make executable first
+            chmod +x raven-linux-x86_64
+            ./raven-linux-x86_64 --help
+
+            # Windows
+            raven-windows-x86_64.exe --help
+            ```
+
+            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full usage.
+          files: |
+            artifacts/raven-linux-x86_64/raven-linux-x86_64
+            artifacts/raven-windows-x86_64.exe/raven-windows-x86_64.exe
+            artifacts/raven-macos-x86_64/raven-macos-x86_64
+          draft: false
+          prerelease: false
