@@ -4,3 +4,4 @@
 *.zip
 *.db*
 *.lock
+Cargo.lock
