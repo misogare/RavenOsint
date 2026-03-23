@@ -12,6 +12,9 @@ on:
         description: 'Tag to release (e.g. v1.2.3)'
         required: true
 
+permissions:
+  contents: read   # default for all jobs; the release job overrides with write
+
 env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: raven
