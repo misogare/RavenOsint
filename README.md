@@ -23,7 +23,9 @@ RavenOSINT is a cross-platform OSINT (Open Source Intelligence) framework for **
 - **REST API + CLI** — use it interactively, in scripts, or as a backend service
 
 Built entirely in Rust for performance, memory safety, and true cross-platform support (Windows, Linux, macOS).
+![alt text](image-1.png)
 
+![alt text](image-2.png)
 ---
 
 ## Related Work
@@ -86,6 +88,7 @@ RAVEN__LLM__API_KEY=your_deepseek_key_here
 Never commit your `.env` file. It is already in `.gitignore`.
 
 ---
+![alt text](image.png)
 
 ## Quick Start
 
@@ -236,6 +239,7 @@ raven config show
 ### `plugin list` — List registered components
 
 Shows all active discovery providers, scrapers, agents, and LLM backends.
+
 
 ```bash
 raven plugin list
