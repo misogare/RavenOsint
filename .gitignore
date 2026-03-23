@@ -5,3 +5,5 @@
 *.db*
 *.lock
 Cargo.lock
+*.lock
+
