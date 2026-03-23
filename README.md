@@ -30,7 +30,7 @@ Built entirely in Rust for performance, memory safety, and true cross-platform s
 
 ## Related Work
 
-This tool was built alongside and used in **[@aryas cybercrime research repository](https://github.com/aryas/cybercrime)** — a collection of threat intelligence notes, phishing campaign analysis, and infrastructure research. RavenOSINT is the automation layer behind that work.
+This tool was built alongside and used in **[ cybercrime research repository](https://github.com/misogare/awesome-cybercrimefs)** — a collection of threat intelligence notes, phishing campaign analysis, and infrastructure research. RavenOSINT is the automation layer behind that work.
 
 ---
 
