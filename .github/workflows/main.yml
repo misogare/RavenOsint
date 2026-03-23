@@ -1,11 +1,16 @@
 name: Release
 
-# Only fires when you push a version tag like v1.0.0 or v1.2.3
+# Fires when you push a version tag like v1.0.0 or v1.2.3, or manually via the Actions UI.
 # Regular commits and PRs are completely ignored.
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.2.3)'
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,13 +42,14 @@ jobs:
         run: cargo test --workspace
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Build release binaries for all three platforms
+  # Build release binaries for all supported platforms
   # ─────────────────────────────────────────────────────────────────────────────
   build:
-    name: Build — ${{ matrix.os }}
+    name: Build — ${{ matrix.artifact }}
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail_fast: false   # keep building other platforms even if one fails
       matrix:
         include:
           - os: ubuntu-latest
@@ -57,6 +63,10 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact: raven-macos-x86_64
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: raven-macos-aarch64
 
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +83,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} -p raven-cli
@@ -98,7 +108,7 @@ jobs:
           path: ${{ matrix.artifact }}
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Create the GitHub release and attach all three binaries
+  # Create the GitHub release and attach all binaries + checksums
   # ─────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release
@@ -115,12 +125,22 @@ jobs:
         with:
           path: artifacts/
 
+      - name: Generate SHA-256 checksums
+        run: |
+          cd artifacts
+          find . -type f | sort | while read f; do
+            sha256sum "$f" | sed 's|  \./|  |' >> ../checksums-sha256.txt
+          done
+          cat ../checksums-sha256.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: RavenOSINT ${{ github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          name: RavenOSINT ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
           body: |
-            ## RavenOSINT ${{ github.ref_name }}
+            ## RavenOSINT ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
 
             ### Download the right binary for your platform:
 
@@ -129,12 +149,17 @@ jobs:
             | Linux (x86_64) | `raven-linux-x86_64` |
             | Windows (x86_64) | `raven-windows-x86_64.exe` |
             | macOS (x86_64) | `raven-macos-x86_64` |
+            | macOS (Apple Silicon / ARM64) | `raven-macos-aarch64` |
 
             ### Quick start
             ```bash
             # Linux / macOS — make executable first
             chmod +x raven-linux-x86_64
             ./raven-linux-x86_64 --help
+
+            # macOS Apple Silicon
+            chmod +x raven-macos-aarch64
+            ./raven-macos-aarch64 --help
 
             # Windows
             raven-windows-x86_64.exe --help
@@ -145,5 +170,7 @@ jobs:
             artifacts/raven-linux-x86_64/raven-linux-x86_64
             artifacts/raven-windows-x86_64.exe/raven-windows-x86_64.exe
             artifacts/raven-macos-x86_64/raven-macos-x86_64
+            artifacts/raven-macos-aarch64/raven-macos-aarch64
+            checksums-sha256.txt
           draft: false
           prerelease: false
