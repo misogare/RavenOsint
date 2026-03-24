@@ -9,7 +9,7 @@
 #   sqlite://raven.db                  — lightweight default
 #   postgres://user:pass@localhost/raven — persistent server
 #   duckdb://raven.duckdb              — analytical queries (fast aggregations)
-url = "sqlite://raven.db"
+url = "duckdb://raven.duckdb"
 
 [scraper]
 rate_rpm         = 10

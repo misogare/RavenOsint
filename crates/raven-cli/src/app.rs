@@ -139,7 +139,7 @@ async fn handle_results_list(
                 let llm_status = item.llm_verdict.status.to_string();
 
                 table.add_row(vec![
-                    Cell::new(&item.job_id.to_string()[..8]), // first 8 chars of UUID
+                    Cell::new(&item.job_id.to_string()),
                     Cell::new(truncate_url(&item.target.url, 55)),
                     status_cell,
                     Cell::new(format!("{:.0}%", item.confidence * 100.0)),
@@ -321,7 +321,7 @@ async fn handle_discoveries_list(
 
             for item in &items {
                 table.add_row(vec![
-                    Cell::new(&item.job_id.to_string()[..8]),
+                    Cell::new(&item.job_id.to_string()),
                     Cell::new(item.request.query.chars().take(45).collect::<String>()),
                     Cell::new(format!("{:?}", item.request.provider).to_lowercase()),
                     Cell::new(item.total_discovered.to_string()),
@@ -358,7 +358,7 @@ async fn handle_discoveries_get(
         OutputFormat::Table => {
             eprintln!(
                 "Discovery job {} — query: \"{}\" | provider: {:?} | {} URLs found",
-                &result.job_id.to_string()[..8],
+                &result.job_id.to_string(),
                 result.request.query,
                 result.request.provider,
                 result.total_discovered,

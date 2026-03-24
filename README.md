@@ -57,7 +57,7 @@ Every component is a separate crate with a clean trait boundary. Swap out any pi
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) 1.75 or later
+- [Rust](https.rustup.rs/) 1.75 or later
 - Git
 
 ### Build from source
@@ -171,13 +171,20 @@ raven discover "phishing" --country us --lang en --limit 10
 
 # Use a seed file (one URL/domain per line)
 raven discover seeds.txt --provider seed_file
+
+# Use VirusTotal for domain reputation and passive DNS
+raven discover "suspicious-domain.com" --provider virustotal --limit 25
+
+# Use Censys to find hosts with specific services
+raven discover "services.port: 443" --provider censys --limit 20
+raven discover "" --provider censys --site suspicious-domain.com
 ```
 
 **Options:**
 | Flag | Description | Default |
 |---|---|---|
 | `--site` | Restrict results to this domain | none |
-| `--provider` | `serper`, `exa`, or `seed_file` | `serper` |
+| `--provider` | `serper`, `exa`, `seed_file`, `virustotal`, `censys` | `serper` |
 | `--limit` | Max URLs to return | `25` |
 | `--country` | ISO country code (e.g. `us`, `de`) | none |
 | `--lang` | Language code (e.g. `en`, `fr`) | none |
@@ -222,6 +229,35 @@ raven validate urls.txt
 # Bash — extract second column (adjust column number as needed)
 cut -d',' -f2 targets.csv | tail -n +2 > urls.txt
 raven validate urls.txt
+```
+
+---
+
+### `results` & `discoveries` — Query stored data
+
+Raven includes a powerful CLI for querying the results database directly, without needing an external tool.
+
+```bash
+# List all stored scan results in a colour-coded table
+raven results list
+
+# Page through results
+raven results list --limit 50 --offset 0
+
+# Filter by status
+raven results list --status malicious
+
+# Full detail for one result — shows agents, LLM reasoning, SSL info
+raven results get <job_id>
+
+# List all discovery jobs
+raven discoveries list
+
+# See all URLs from a specific discovery job
+raven discoveries get <job_id>
+
+# Export URLs from a job straight into validate
+raven discoveries get <job_id> --output urls | raven validate -
 ```
 
 ---
@@ -310,10 +346,26 @@ curl http://127.0.0.1:3000/results/70da917b-a309-45ef-bd53-84a62e67061b
 
 All settings live in `config/default.toml`. Every value can be overridden with an environment variable using the pattern `RAVEN__<SECTION>__<KEY>`.
 
-```toml
-[database]
-url = "sqlite://raven.db"         # or postgres://user:pass@host/db
+### Storage: SQLite, PostgreSQL, and DuckDB
 
+Switch between databases by editing `config/default.toml`.
+
+```toml
+# config/default.toml
+[database]
+url = "duckdb://raven.duckdb"
+```
+
+To use PostgreSQL or DuckDB, you must enable a feature flag at compile time.
+
+```bash
+# Example: Run a discovery with DuckDB enabled
+cargo run -p raven-cli --features raven-storage/duckdb -- discover "apple inc" --site apple.com --limit 5
+```
+
+The rest of the configuration is shown below.
+
+```toml
 [scraper]
 rate_rpm       = 10               # requests per minute per domain
 timeout_secs   = 30
