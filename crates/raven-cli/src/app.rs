@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::commands::{
     Cli, Command, ConfigCommand, DiscoverArgs, DiscoveriesCommand, DiscoveriesGetArgs,
-    DiscoveriesListArgs, OutputFormat, PluginCommand, ResultsCommand, ResultsGetArgs,
+    DiscoveriesListArgs, OutputFormat, ResultsCommand, ResultsGetArgs,
     ResultsListArgs,
 };
 
