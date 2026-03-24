@@ -20,17 +20,15 @@ license      = "MIT"
 repository   = "https://github.com/misogare/ravenosint"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Shared dependency versions — all crates pin from here
+# Shared dependency versions
 # ─────────────────────────────────────────────────────────────────────────────
 [workspace.dependencies]
 # Async runtime
 tokio        = { version = "1",  features = ["full"] }
 tokio-stream = { version = "0.1" }
 
-# Async trait support — shared across all crates
+# Async trait + concurrency
 async-trait  = { version = "0.1" }
-
-# Concurrency utilities
 futures      = { version = "0.3" }
 
 # HTTP / TLS
@@ -61,14 +59,17 @@ scraper      = { version = "0.20" }
 # Graph (agent DAG)
 petgraph     = { version = "0.6" }
 
-# LLM (used with DeepSeek base-url override)
+# LLM
 async-openai = { version = "0.27" }
 
 # Templating
 tera         = { version = "1" }
 
-# Database (feature-gated per crate)
+# Database — SQLite / PostgreSQL
 sqlx         = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "macros", "migrate"] }
+
+# Database — DuckDB (analytical, bundled build — no system install needed)
+duckdb       = { version = "1.0", features = ["bundled"] }
 
 # Web framework
 axum                  = { version = "0.7", features = ["macros"] }

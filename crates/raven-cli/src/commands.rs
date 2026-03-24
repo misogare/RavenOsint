@@ -20,51 +20,140 @@ pub enum Command {
     Scan(ScanArgs),
     /// Validate every URL in a newline-delimited file.
     Validate(ValidateArgs),
+    /// View stored scan results without opening the database.
+    Results(ResultsArgs),
+    /// View stored discovery results without opening the database.
+    Discoveries(DiscoveriesArgs),
     /// Configuration utilities.
     Config(ConfigArgs),
     /// Plugin registry utilities.
     Plugin(PluginArgs),
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Results viewing
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Args)]
+pub struct ResultsArgs {
+    #[command(subcommand)]
+    pub command: ResultsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ResultsCommand {
+    /// List all stored scan results.
+    List(ResultsListArgs),
+    /// Show full details for one scan result.
+    Get(ResultsGetArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ResultsListArgs {
+    /// Maximum number of results to show.
+    #[arg(long, default_value_t = 20)]
+    pub limit: i64,
+
+    /// Skip this many results (for pagination).
+    #[arg(long, default_value_t = 0)]
+    pub offset: i64,
+
+    /// Filter by status: active, suspicious, malicious, down, unknown.
+    #[arg(long)]
+    pub status: Option<String>,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+pub struct ResultsGetArgs {
+    /// Job UUID to retrieve.
+    pub job_id: String,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Discoveries viewing
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Args)]
+pub struct DiscoveriesArgs {
+    #[command(subcommand)]
+    pub command: DiscoveriesCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DiscoveriesCommand {
+    /// List all stored discovery jobs.
+    List(DiscoveriesListArgs),
+    /// Show URLs from one discovery job.
+    Get(DiscoveriesGetArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct DiscoveriesListArgs {
+    /// Maximum number of discovery jobs to show.
+    #[arg(long, default_value_t = 20)]
+    pub limit: i64,
+
+    /// Skip this many jobs (for pagination).
+    #[arg(long, default_value_t = 0)]
+    pub offset: i64,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+pub struct DiscoveriesGetArgs {
+    /// Discovery job UUID to retrieve.
+    pub job_id: String,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Existing commands
+// ─────────────────────────────────────────────────────────────────────────────
+
 #[derive(Debug, Args)]
 pub struct DiscoverArgs {
-    /// Search query, domain, or path to a seed file (used with --provider=seed_file).
+    /// Search query, domain, or path to a seed file.
     pub query: String,
 
-    /// Restrict results to this domain (e.g. example.com).
     #[arg(long)]
     pub site: Option<String>,
 
-    /// Discovery provider to use.
     #[arg(long, value_enum, default_value_t = DiscoveryProviderArg::Serper)]
     pub provider: DiscoveryProviderArg,
 
-    /// Maximum number of candidate URLs to return.
     #[arg(long, default_value_t = 25)]
     pub limit: usize,
 
-    /// ISO 3166-1 alpha-2 country code for geo-localised results (e.g. us, de).
     #[arg(long)]
     pub country: Option<String>,
 
-    /// BCP 47 language code for localised results (e.g. en, de).
     #[arg(long)]
     pub lang: Option<String>,
 
-    /// Include subdomain results when --site is set.
     #[arg(long, default_value_t = true)]
     pub include_subdomains: bool,
 
-    /// Automatically feed discovered URLs into the validation pipeline.
-    /// Defaults to false — discovery only unless this flag is set.
+    /// Also run the full scan pipeline on every discovered URL.
     #[arg(long)]
     pub validate: bool,
 
-    /// Comma-separated tags to attach to validation jobs created by --validate.
     #[arg(long, value_delimiter = ',')]
     pub tags: Vec<String>,
 
-    /// Output format.
     /// `urls` emits one URL per line for piping into `raven validate`.
     #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
     pub output: OutputFormat,
@@ -72,24 +161,19 @@ pub struct DiscoverArgs {
 
 #[derive(Debug, Args)]
 pub struct ScanArgs {
-    /// URL to scan.
     pub url: String,
 
-    /// Comma-separated tags.
     #[arg(long, value_delimiter = ',')]
     pub tags: Vec<String>,
 
-    /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
     pub output: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 pub struct ValidateArgs {
-    /// Path to a newline-delimited file of URLs to validate.
     pub file: PathBuf,
 
-    /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
     pub output: OutputFormat,
 }
@@ -114,39 +198,34 @@ pub struct PluginArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum PluginCommand {
-    /// List registered providers, scrapers, agents, and LLM backends.
     List,
 }
 
-/// Output format for CLI commands.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputFormat {
-    /// Pretty-printed JSON — machine-readable and pipeable to `jq`.
     Json,
-    /// Human-readable table — default for interactive use.
     Table,
-    /// One URL per line — for piping directly into `raven validate`.
-    /// Example: raven discover "phishing kits" --output urls | raven validate -
+    /// One URL per line — for piping into `raven validate`.
     Urls,
 }
 
-/// Discovery provider selection for the CLI.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum DiscoveryProviderArg {
-    /// Serper (Google-style search) — default provider.
     Serper,
-    /// Exa (agentic web search with richer metadata).
     Exa,
-    /// Seed file — reads URLs/domains from a file or inline query string.
     SeedFile,
+    Censys,
+    VirusTotal,
 }
 
 impl From<DiscoveryProviderArg> for DiscoveryProviderKind {
     fn from(value: DiscoveryProviderArg) -> Self {
         match value {
-            DiscoveryProviderArg::Serper   => DiscoveryProviderKind::Serper,
-            DiscoveryProviderArg::Exa      => DiscoveryProviderKind::Exa,
-            DiscoveryProviderArg::SeedFile => DiscoveryProviderKind::SeedFile,
+            DiscoveryProviderArg::Serper      => DiscoveryProviderKind::Serper,
+            DiscoveryProviderArg::Exa         => DiscoveryProviderKind::Exa,
+            DiscoveryProviderArg::SeedFile    => DiscoveryProviderKind::SeedFile,
+            DiscoveryProviderArg::Censys      => DiscoveryProviderKind::Censys,
+            DiscoveryProviderArg::VirusTotal  => DiscoveryProviderKind::VirusTotal,
         }
     }
 }

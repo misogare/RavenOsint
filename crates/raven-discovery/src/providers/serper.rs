@@ -234,6 +234,7 @@ mod tests {
                 enabled: true,
                 base_url: "https://google.serper.dev/search".into(),
                 api_key: "test-key".into(),
+                api_secret: String::new(),
             },
             ..DiscoveryConfig::default()
         }

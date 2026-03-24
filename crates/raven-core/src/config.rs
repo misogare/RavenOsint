@@ -16,7 +16,7 @@ use crate::OsintError;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
-    /// `sqlite://raven.db` or `postgres://user:pass@host/db`
+    /// `sqlite://raven.db`, `postgres://user:pass@host/db`, or `duckdb://raven.duckdb`
     pub url: String,
 }
 
@@ -101,21 +101,26 @@ impl Default for LoggingConfig {
     }
 }
 
+/// Generic provider config — used by Serper, Exa, and VirusTotal.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DiscoveryProviderConfig {
-    pub enabled: bool,
+    pub enabled:  bool,
     pub base_url: String,
-    /// Never commit real keys — prefer env overrides.
-    pub api_key: String,
+    /// Primary API key. Never commit real values — prefer env overrides.
+    pub api_key:  String,
+    /// Optional secondary secret (used by Censys: App ID = api_key, Secret = api_secret).
+    /// Left empty for providers that only need a single key.
+    pub api_secret: String,
 }
 
 impl Default for DiscoveryProviderConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            base_url: String::new(),
-            api_key: String::new(),
+            enabled:    false,
+            base_url:   String::new(),
+            api_key:    String::new(),
+            api_secret: String::new(),
         }
     }
 }
@@ -123,50 +128,54 @@ impl Default for DiscoveryProviderConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DiscoveryConfig {
-    pub enabled: bool,
-    pub default_provider: String,
-    pub default_limit: usize,
-    pub max_limit: usize,
-    pub timeout_secs: u64,
-    pub rate_rpm: u32,
-    pub include_subdomains: bool,
+    pub enabled:             bool,
+    pub default_provider:    String,
+    pub default_limit:       usize,
+    pub max_limit:           usize,
+    pub timeout_secs:        u64,
+    pub rate_rpm:            u32,
+    pub include_subdomains:  bool,
     pub validate_by_default: bool,
-    pub serper: DiscoveryProviderConfig,
-    pub exa: DiscoveryProviderConfig,
-    pub censys: DiscoveryProviderConfig,
-    pub virus_total: DiscoveryProviderConfig,
+    pub serper:              DiscoveryProviderConfig,
+    pub exa:                 DiscoveryProviderConfig,
+    pub censys:              DiscoveryProviderConfig,
+    pub virus_total:         DiscoveryProviderConfig,
 }
 
 impl Default for DiscoveryConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            default_provider: "serper".into(),
-            default_limit: 25,
-            max_limit: 100,
-            timeout_secs: 20,
-            rate_rpm: 30,
-            include_subdomains: true,
+            enabled:             true,
+            default_provider:    "serper".into(),
+            default_limit:       25,
+            max_limit:           100,
+            timeout_secs:        20,
+            rate_rpm:            30,
+            include_subdomains:  true,
             validate_by_default: false,
             serper: DiscoveryProviderConfig {
-                enabled: true,
-                base_url: "https://google.serper.dev/search".into(),
-                api_key: String::new(),
+                enabled:    true,
+                base_url:   "https://google.serper.dev/search".into(),
+                api_key:    String::new(),
+                api_secret: String::new(),
             },
             exa: DiscoveryProviderConfig {
-                enabled: true,
-                base_url: "https://api.exa.ai/search".into(),
-                api_key: String::new(),
+                enabled:    true,
+                base_url:   "https://api.exa.ai/search".into(),
+                api_key:    String::new(),
+                api_secret: String::new(),
             },
             censys: DiscoveryProviderConfig {
-                enabled: false,
-                base_url: "https://api.platform.censys.io/v3/global/".into(),
-                api_key: String::new(),
+                enabled:    false,
+                base_url:   "https://api.censys.io/v2".into(),
+                api_key:    String::new(), // Censys App ID
+                api_secret: String::new(), // Censys Secret
             },
             virus_total: DiscoveryProviderConfig {
-                enabled: false,
-                base_url: "https://www.virustotal.com/api/v3".into(),
-                api_key: String::new(),
+                enabled:    false,
+                base_url:   "https://www.virustotal.com/api/v3".into(),
+                api_key:    String::new(),
+                api_secret: String::new(),
             },
         }
     }
@@ -179,16 +188,16 @@ impl Default for DiscoveryConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct RavenConfig {
-    pub database: DatabaseConfig,
-    pub scraper:  ScraperConfig,
+    pub database:  DatabaseConfig,
+    pub scraper:   ScraperConfig,
     pub discovery: DiscoveryConfig,
-    pub llm:      LlmConfig,
-    pub api:      ApiConfig,
-    pub logging:  LoggingConfig,
+    pub llm:       LlmConfig,
+    pub api:       ApiConfig,
+    pub logging:   LoggingConfig,
 }
 
 impl RavenConfig {
-    /// Load config from file (if present) then overlay env-vars.
+    /// Load config from file then overlay env-vars.
     ///
     /// Priority (high → low):
     ///   1. Environment variables (`RAVEN__<SECTION>__<KEY>`)

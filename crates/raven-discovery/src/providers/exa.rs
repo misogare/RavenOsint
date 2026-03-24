@@ -224,6 +224,7 @@ mod tests {
                 enabled: true,
                 base_url: "https://api.exa.ai/search".into(),
                 api_key: "test-key".into(),
+                api_secret: String::new(),
             },
             ..DiscoveryConfig::default()
         }

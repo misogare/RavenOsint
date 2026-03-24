@@ -9,10 +9,12 @@ license.workspace = true
 default  = ["sqlite"]
 sqlite   = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
+duckdb   = ["dep:duckdb"]
 
 [dependencies]
 raven-core  = { workspace = true }
-sqlx        = { workspace = true }
+sqlx        = { workspace = true, optional = true }
+duckdb      = { workspace = true, optional = true }
 tokio       = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
