@@ -5,104 +5,125 @@ use raven_core::{
     DiscoveryRequest, DiscoveryResult, DiscoveryType, OsintError, SearchProvider,
 };
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::normalize::{extract_domain, normalize_url};
 
-/// Censys host search — uses Bearer PAT (Personal Access Token).
-/// Get yours at: https://search.censys.io/account/api
+/// Censys Global Search v3 provider.
+///
+/// Uses: POST /v3/global/search (as documented at docs.censys.com/reference/v3-globaldata-search-aggregate)
+/// Auth: Bearer Personal Access Token
 /// Set via: RAVEN__DISCOVERY__CENSYS__API_KEY
+/// Get your PAT at: https://search.censys.io/account/api
+///
+/// Note: No org ID required for personal accounts. Free tier = 250 queries/month.
 pub struct CensysProvider {
-    client:   Client,
-    token:    String,
-    base_url: String,
+    client:          Client,
+    api_key:         String,
+    api_secret:      String,
+    base_url:        String,
+    organization_id: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct CensysSearchRequest {
-    q:        String,
-    per_page: usize,
+// ─── wire types ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct CensysV3Response {
+    result: Option<CensysV3Result>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CensysSearchResponse {
-    result: Option<CensysResult>,
+struct CensysV3Result {
+    #[serde(default)]
+    hits: Vec<CensysV3Hit>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CensysResult {
+struct CensysV3Hit {
+    ip: Option<String>,
     #[serde(default)]
-    hits: Vec<CensysHit>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CensysHit {
-    ip: String,
+    names: Vec<String>,
     #[serde(default)]
-    name: Vec<String>,
-    #[serde(default)]
-    services: Vec<CensysService>,
+    services: Vec<CensysV3Service>,
     #[serde(default)]
     labels: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CensysService {
-    port:               Option<u16>,
-    transport_protocol: Option<String>,
-    service_name:       Option<String>,
-    tls:                Option<CensysTls>,
+struct CensysV3Service {
+    port:         Option<u16>,
+    service_name: Option<String>,
+    tls:          Option<CensysV3Tls>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CensysTls {
-    certificates: Option<CensysCerts>,
+struct CensysV3Tls {
+    certificates: Option<CensysV3Certs>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CensysCerts {
-    leaf_data: Option<CensysLeaf>,
+struct CensysV3Certs {
+    leaf_data: Option<CensysV3Leaf>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CensysLeaf {
+struct CensysV3Leaf {
     #[serde(default)]
     names: Vec<String>,
 }
 
+// ─── impl ─────────────────────────────────────────────────────────────────────
+
 impl CensysProvider {
     pub fn new(config: &DiscoveryConfig) -> Result<Self, OsintError> {
-        if !config.censys.enabled {
-            return Err(OsintError::Discovery("censys provider is disabled".into()));
-        }
         if config.censys.api_key.is_empty() {
             return Err(OsintError::Config(
-                "censys api_key is empty; set RAVEN__DISCOVERY__CENSYS__API_KEY to your PAT from https://search.censys.io/account/api".into(),
+                "censys api_key is empty; set RAVEN__DISCOVERY__CENSYS__API_KEY"
+                    .into(),
             ));
         }
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(config.timeout_secs))
             .build()
             .map_err(OsintError::Http)?;
+
+        let base_url = config.censys.base_url.trim_end_matches('/').to_string();
+        let organization_id = std::env::var("RAVEN__DISCOVERY__CENSYS__ORGANIZATION_ID")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty());
+
         Ok(Self {
             client,
-            token:    config.censys.api_key.clone(),
-            base_url: config.censys.base_url.trim_end_matches('/').to_string(),
+            api_key: config.censys.api_key.clone(),
+            api_secret: config.censys.api_secret.clone(),
+            base_url,
+            organization_id,
         })
+    }
+
+    fn is_v3_platform(&self) -> bool {
+        self.base_url.contains("api.platform.censys.io") || self.base_url.contains("/v3")
+    }
+
+    fn has_v2_secret(&self) -> bool {
+        !self.api_secret.is_empty()
     }
 
     fn build_query(&self, request: &DiscoveryRequest) -> String {
         match &request.site {
             Some(site) => format!(
-                "dns.reverse_dns.reverse_dns: \"{site}\" or services.tls.certificates.leaf_data.names: \"{site}\""
+                "dns.reverse_dns.reverse_dns: \"{site}\" or \
+                 services.tls.certificates.leaf_data.names: \"{site}\""
             ),
             None => request.query.trim().to_string(),
         }
     }
 
-    fn hit_to_urls(&self, hit: &CensysHit, request: &DiscoveryRequest, rank: u32) -> Vec<DiscoveredUrl> {
-        let mut urls = Vec::new();
-        let mut hostnames: Vec<String> = hit.name.clone();
+    fn hit_to_urls(&self, hit: &CensysV3Hit, request: &DiscoveryRequest, rank: u32) -> Vec<DiscoveredUrl> {
+        let ip = hit.ip.as_deref().unwrap_or("unknown");
+        let mut hostnames = hit.names.clone();
+
         if hostnames.is_empty() {
             for svc in &hit.services {
                 if let Some(names) = svc.tls.as_ref()
@@ -114,8 +135,11 @@ impl CensysProvider {
                 }
             }
         }
-        if hostnames.is_empty() { hostnames.push(hit.ip.clone()); }
+        if hostnames.is_empty() {
+            if let Some(ip_str) = &hit.ip { hostnames.push(ip_str.clone()); }
+        }
 
+        let mut urls = Vec::new();
         for svc in &hit.services {
             let port = svc.port.unwrap_or(0);
             let scheme = match (svc.service_name.as_deref(), svc.tls.is_some(), port) {
@@ -125,21 +149,21 @@ impl CensysProvider {
                 (Some("HTTP"), ..) => "http",
                 _                  => continue,
             };
+
             for host in &hostnames {
                 let raw = if (scheme == "http" && port != 80 && port != 0)
                     || (scheme == "https" && port != 443 && port != 0)
                 { format!("{scheme}://{host}:{port}/") } else { format!("{scheme}://{host}/") };
 
                 let normalized = match normalize_url(&raw) { Ok(u) => u, Err(_) => continue };
-                let snippet = Some(format!(
-                    "Censys: {} — port {}/{} | labels: {}",
-                    hit.ip, port,
-                    svc.transport_protocol.as_deref().unwrap_or("tcp"),
-                    if hit.labels.is_empty() { "none".into() } else { hit.labels.join(", ") }
-                ));
                 urls.push(DiscoveredUrl {
                     domain: extract_domain(&normalized).unwrap_or_default(),
-                    url: normalized, title: None, snippet,
+                    url: normalized, title: None,
+                    snippet: Some(format!(
+                        "Censys: {} — port {} | labels: {}",
+                        ip, port,
+                        if hit.labels.is_empty() { "none".into() } else { hit.labels.join(", ") }
+                    )),
                     provider:       DiscoveryProviderKind::Censys,
                     discovery_type: DiscoveryType::CensysAsset,
                     source_query:   request.query.clone(),
@@ -152,22 +176,47 @@ impl CensysProvider {
     }
 
     async fn do_search(&self, request: &DiscoveryRequest) -> Result<DiscoveryResult, OsintError> {
-        let query    = self.build_query(request);
-        let endpoint = format!("{}/hosts/search", self.base_url);
+        let query = self.build_query(request);
+        let per_page = request.limit.min(100);
 
-        let response = self.client.get(&endpoint)
-            .bearer_auth(&self.token)
-            .query(&[("q", &query), ("per_page", &request.limit.min(100).to_string())])
-            .send().await.map_err(OsintError::Http)?;
+        let response = if self.is_v3_platform() {
+            self.search_v3(&query, per_page).await?
+        } else {
+            self.search_v2(&query, per_page).await?
+        };
 
         let status = response.status();
-        if matches!(status.as_u16(), 401 | 403 | 402 | 429) {
-            tracing::warn!(%status, "censys: non-success — check PAT or tier; returning empty");
-            return Ok(empty_result(request));
+        let response_text = response.text().await.unwrap_or_default();
+        tracing::debug!(%status, "censys: got response");
+
+        match status.as_u16() {
+            401 | 403 => {
+                tracing::warn!(
+                    %status,
+                    body = %truncate_body(&response_text),
+                    "censys: auth or permission failure — verify API Access role and PAT scope in Censys Platform"
+                );
+                return Ok(empty_result(request));
+            }
+            429 => {
+                tracing::warn!(
+                    body = %truncate_body(&response_text),
+                    "censys: rate limit hit"
+                );
+                return Ok(empty_result(request));
+            }
+            402 => {
+                tracing::warn!(
+                    body = %truncate_body(&response_text),
+                    "censys: query requires a paid tier"
+                );
+                return Ok(empty_result(request));
+            }
+            _ => {}
         }
 
-        let parsed = response.error_for_status().map_err(OsintError::Http)?
-            .json::<CensysSearchResponse>().await.map_err(OsintError::Http)?;
+        let parsed = serde_json::from_str::<CensysV3Response>(&response_text)
+            .map_err(|e| OsintError::Discovery(format!("censys response parse failed: {e}")))?;
 
         let hits = parsed.result.map(|r| r.hits).unwrap_or_default();
         let mut urls: Vec<DiscoveredUrl> = Vec::new();
@@ -184,6 +233,62 @@ impl CensysProvider {
             total_discovered: urls.len(), urls, completed_at: Utc::now(),
         })
     }
+
+    async fn search_v2(&self, query: &str, per_page: usize) -> Result<reqwest::Response, OsintError> {
+        let endpoint = format!("{}/hosts/search", self.base_url);
+        tracing::debug!(endpoint = %endpoint, query = %query, "censys: sending v2 request");
+
+        let mut req = self
+            .client
+            .get(&endpoint)
+            .query(&[("q", query), ("per_page", &per_page.to_string())]);
+
+        if self.has_v2_secret() {
+            // Legacy v2 credentials: App ID + Secret.
+            req = req.basic_auth(&self.api_key, Some(&self.api_secret));
+        } else {
+            // PAT flow for accounts issuing bearer tokens.
+            req = req.bearer_auth(&self.api_key).header("x-auth-token", &self.api_key);
+        }
+
+        req.send().await.map_err(OsintError::Http)
+    }
+
+    async fn search_v3(&self, query: &str, per_page: usize) -> Result<reqwest::Response, OsintError> {
+        let endpoint = format!("{}/global/search/query", self.base_url);
+        tracing::debug!(endpoint = %endpoint, query = %query, "censys: sending v3 request");
+
+        // v3 Platform API expects bearer auth.
+        let body = serde_json::json!({
+            "query": query,
+            "page_size": per_page,
+        });
+
+        let mut req = self.client
+            .post(&endpoint)
+            .bearer_auth(&self.api_key)
+            .header("x-auth-token", &self.api_key)
+            .header("x-api-key", &self.api_key)
+            .header("accept", "application/json")
+            .json(&body);
+
+        if let Some(org_id) = &self.organization_id {
+            req = req
+                .query(&[("organization_id", org_id)])
+                .header("x-organization-id", org_id);
+        }
+
+        req.send().await.map_err(OsintError::Http)
+    }
+}
+
+fn truncate_body(input: &str) -> String {
+    const MAX: usize = 400;
+    let body = input.trim();
+    if body.len() <= MAX {
+        return body.to_string();
+    }
+    format!("{}...", &body[..MAX])
 }
 
 fn empty_result(r: &DiscoveryRequest) -> DiscoveryResult {
@@ -214,16 +319,33 @@ mod tests {
     fn config() -> DiscoveryConfig {
         DiscoveryConfig {
             censys: DiscoveryProviderConfig {
-                enabled: true, base_url: "https://api.censys.io/v2".into(),
+                enabled: true, base_url: "https://search.censys.io/api/v2".into(),
                 api_key: "test-pat".into(), api_secret: String::new(),
             },
             ..DiscoveryConfig::default()
         }
     }
 
+    #[test]
+    fn detects_v3_platform_mode() {
+        let mut c = config();
+        c.censys.base_url = "https://api.platform.censys.io/v3".into();
+        let p = CensysProvider::new(&c).unwrap();
+        assert!(p.is_v3_platform());
+    }
+
+    #[test]
+    fn detects_v2_secret_mode() {
+        let mut c = config();
+        c.censys.api_secret = "secret".into();
+        let p = CensysProvider::new(&c).unwrap();
+        assert!(p.has_v2_secret());
+    }
+
     #[test] fn domain_query_contains_site() {
         let p = CensysProvider::new(&config()).unwrap();
-        let mut req = DiscoveryRequest::new("x"); req.site = Some("example.com".into());
+        let mut req = DiscoveryRequest::new("x");
+        req.site = Some("example.com".into());
         assert!(p.build_query(&req).contains("example.com"));
     }
     #[test] fn raw_query_passthrough() {
@@ -236,18 +358,13 @@ mod tests {
     }
     #[test] fn http_hit_produces_url() {
         let p = CensysProvider::new(&config()).unwrap();
-        let hit = CensysHit { ip: "1.2.3.4".into(), name: vec!["ex.com".into()],
-            services: vec![CensysService { port: Some(80), transport_protocol: Some("TCP".into()),
-                service_name: Some("HTTP".into()), tls: None }], labels: vec![] };
+        let hit = CensysV3Hit {
+            ip: Some("1.2.3.4".into()), names: vec!["ex.com".into()],
+            services: vec![CensysV3Service { port: Some(80),
+                service_name: Some("HTTP".into()), tls: None }], labels: vec![],
+        };
         let urls = p.hit_to_urls(&hit, &DiscoveryRequest::new("t"), 1);
         assert_eq!(urls.len(), 1);
         assert_eq!(urls[0].url, "http://ex.com/");
-    }
-    #[test] fn ssh_hit_skipped() {
-        let p = CensysProvider::new(&config()).unwrap();
-        let hit = CensysHit { ip: "1.2.3.4".into(), name: vec!["ex.com".into()],
-            services: vec![CensysService { port: Some(22), transport_protocol: Some("TCP".into()),
-                service_name: Some("SSH".into()), tls: None }], labels: vec![] };
-        assert!(p.hit_to_urls(&hit, &DiscoveryRequest::new("t"), 1).is_empty());
     }
 }

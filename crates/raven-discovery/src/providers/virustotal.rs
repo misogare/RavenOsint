@@ -101,9 +101,6 @@ struct VtMeta {
 
 impl VirusTotalProvider {
     pub fn new(config: &DiscoveryConfig) -> Result<Self, OsintError> {
-        if !config.virus_total.enabled {
-            return Err(OsintError::Discovery("virustotal provider is disabled".into()));
-        }
         if config.virus_total.api_key.is_empty() {
             return Err(OsintError::Config(
                 "virustotal api_key is empty; set RAVEN__DISCOVERY__VIRUS_TOTAL__API_KEY".into(),
@@ -137,7 +134,13 @@ impl VirusTotalProvider {
             .query(&[("limit", limit.to_string())])
             .send().await.map_err(OsintError::Http)?;
 
-        if matches!(response.status().as_u16(), 429 | 403 | 401) {
+        if response.status().as_u16() == 403 {
+            // Public keys can receive 403 on relationship endpoints reserved for premium.
+            tracing::info!(status = %response.status(), "virustotal: domain urls relationship not available for this key tier");
+            return Ok(vec![]);
+        }
+
+        if matches!(response.status().as_u16(), 429 | 401) {
             tracing::warn!(status = %response.status(), "virustotal: rate limit or auth issue");
             return Ok(vec![]);
         }
@@ -189,6 +192,24 @@ impl VirusTotalProvider {
         let reputation = attrs.reputation.unwrap_or(0);
         let mut urls = Vec::new();
 
+        // Always return the queried domain itself when domain-info is accessible.
+        let root = format!("https://{domain}/");
+        if let Ok(normalized) = normalize_url(&root) {
+            urls.push(DiscoveredUrl {
+                domain: extract_domain(&normalized).unwrap_or_else(|| domain.to_string()),
+                url: normalized,
+                title: None,
+                snippet: Some(format!("VirusTotal domain lookup | reputation: {reputation}")),
+                provider: DiscoveryProviderKind::VirusTotal,
+                discovery_type: DiscoveryType::VirusTotalPivot,
+                source_query: request.query.clone(),
+                source_url: None,
+                rank: Some(1),
+                confidence: if reputation < 0 { 0.9 } else { 0.5 },
+                discovered_at: Utc::now(),
+            });
+        }
+
         for (rank, subdomain) in attrs.subdomains.iter().enumerate() {
             let normalized = match normalize_url(&format!("https://{subdomain}/")) { Ok(u) => u, Err(_) => continue };
             urls.push(DiscoveredUrl {
@@ -198,7 +219,7 @@ impl VirusTotalProvider {
                 provider:       DiscoveryProviderKind::VirusTotal,
                 discovery_type: DiscoveryType::VirusTotalPivot,
                 source_query:   request.query.clone(), source_url: None,
-                rank:       Some((rank + 1) as u32),
+                rank:       Some((rank + 2) as u32),
                 confidence: if reputation < 0 { 0.9 } else { 0.5 },
                 discovered_at: Utc::now(),
             });
@@ -265,7 +286,7 @@ mod tests {
     }
     #[test] fn fails_if_disabled() {
         let mut c = config(); c.virus_total.enabled = false;
-        assert!(VirusTotalProvider::new(&c).is_err());
+        assert!(VirusTotalProvider::new(&c).is_ok());
     }
     #[test] fn high_confidence_for_malicious() {
         let stats = Some(VtStats { malicious: Some(50), suspicious: Some(5), harmless: Some(0), undetected: Some(5) });

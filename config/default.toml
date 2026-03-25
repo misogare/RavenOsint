@@ -42,13 +42,15 @@ base_url = "https://api.exa.ai/search"
 api_key  = ""   # RAVEN__DISCOVERY__EXA__API_KEY
 
 [discovery.censys]
-enabled    = false
-base_url   = "https://api.censys.io/v2"
-api_key    = ""   # RAVEN__DISCOVERY__CENSYS__API_KEY    (App ID)
-api_secret = ""   # RAVEN__DISCOVERY__CENSYS__API_SECRET (Secret)
+enabled    = true
+base_url   = "https://api.platform.censys.io/v3"
+api_key    = ""   # RAVEN__DISCOVERY__CENSYS__API_KEY    (Platform PAT)
+api_secret = ""   # RAVEN__DISCOVERY__CENSYS__API_SECRET (optional legacy v2 secret)
+# Optional org context for Platform API billing/permissions:
+# RAVEN__DISCOVERY__CENSYS__ORGANIZATION_ID=<uuid>
 
 [discovery.virus_total]
-enabled  = false
+enabled  = true
 base_url = "https://www.virustotal.com/api/v3"
 api_key  = ""   # RAVEN__DISCOVERY__VIRUS_TOTAL__API_KEY
 

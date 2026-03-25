@@ -213,8 +213,13 @@ pub enum OutputFormat {
 pub enum DiscoveryProviderArg {
     Serper,
     Exa,
+    /// Accepts: seed-file or seedfile
+    #[value(name = "seed-file", alias = "seedfile")]
     SeedFile,
+    #[value(alias = "cens")]
     Censys,
+    /// Accepts: virustotal or virus-total
+    #[value(name = "virustotal", alias = "virus-total")]
     VirusTotal,
 }
 

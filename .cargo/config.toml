@@ -1,0 +1,9 @@
+[env]
+# MinGW/GNU toolchain on Windows needs big object support when compiling
+# bundled DuckDB sources in debug mode.
+CFLAGS = "-Wa,-mbig-obj"
+CXXFLAGS = "-Wa,-mbig-obj"
+
+[target.x86_64-pc-windows-gnu]
+# Keep linker explicit for GNU toolchain environments.
+linker = "g++.exe"

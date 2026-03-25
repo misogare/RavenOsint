@@ -54,6 +54,12 @@ pub trait ResultStore: Send + Sync + 'static {
 
 /// Factory: inspect the URL prefix and return the appropriate boxed store.
 pub async fn new_store(database_url: &str) -> Result<Box<dyn ResultStore>, OsintError> {
+    #[cfg(feature = "duckdb")]
+    if database_url.starts_with("duckdb") {
+        let store = crate::duckdb_store::DuckDbStore::connect(database_url)?;
+        return Ok(Box::new(store));
+    }
+
     #[cfg(feature = "sqlite")]
     if database_url.starts_with("sqlite") {
         let store = crate::sqlite::SqliteStore::connect(database_url).await?;
@@ -68,6 +74,6 @@ pub async fn new_store(database_url: &str) -> Result<Box<dyn ResultStore>, Osint
 
     Err(OsintError::Config(format!(
         "unsupported database URL scheme: '{database_url}'. \
-         Enable the 'sqlite' or 'postgres' feature and use a matching URL."
+         Enable the 'duckdb', 'sqlite', or 'postgres' feature and use a matching URL."
     )))
 }
