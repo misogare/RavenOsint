@@ -108,7 +108,10 @@ mod tests {
         let text = extract_text(html);
         assert!(text.contains("Visible"), "expected Visible in: {text}");
         assert!(text.contains("end"), "expected end in: {text}");
-        assert!(!text.contains("hidden()"), "nested script leaked into: {text}");
+        assert!(
+            !text.contains("hidden()"),
+            "nested script leaked into: {text}"
+        );
     }
 
     #[test]

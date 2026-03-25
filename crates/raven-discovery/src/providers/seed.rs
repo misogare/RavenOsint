@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use raven_core::{
-    DiscoveredUrl, DiscoveryPlugin, DiscoveryRequest, DiscoveryResult, DiscoveryType,
-    DiscoveryProviderKind, OsintError,
+    DiscoveredUrl, DiscoveryPlugin, DiscoveryProviderKind, DiscoveryRequest, DiscoveryResult,
+    DiscoveryType, OsintError,
 };
 use std::collections::HashSet;
 use tokio::fs;

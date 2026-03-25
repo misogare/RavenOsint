@@ -299,10 +299,7 @@ mod tests {
         assert_eq!(result.urls[0].provider, DiscoveryProviderKind::Serper);
         assert_eq!(result.urls[0].domain, "www.apple.com");
         assert_eq!(result.urls[0].rank, Some(1));
-        assert_eq!(
-            result.urls[0].discovery_type,
-            DiscoveryType::SearchResult
-        );
+        assert_eq!(result.urls[0].discovery_type, DiscoveryType::SearchResult);
     }
 
     #[test]
@@ -310,13 +307,15 @@ mod tests {
         let provider = SerperSearchProvider::new(&config()).unwrap();
         let mut request = DiscoveryRequest::new("login");
         request.site = Some("example.com".into());
-        let response: SerperResponse = serde_json::from_str(
-            r#"{"organic": [{"link": "https://example.com/login"}]}"#,
-        )
-        .unwrap();
+        let response: SerperResponse =
+            serde_json::from_str(r#"{"organic": [{"link": "https://example.com/login"}]}"#)
+                .unwrap();
 
         let result = provider.into_result(&request, response).unwrap();
-        assert_eq!(result.urls[0].discovery_type, DiscoveryType::DomainScopedSearch);
+        assert_eq!(
+            result.urls[0].discovery_type,
+            DiscoveryType::DomainScopedSearch
+        );
     }
 
     #[test]

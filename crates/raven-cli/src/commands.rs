@@ -226,11 +226,11 @@ pub enum DiscoveryProviderArg {
 impl From<DiscoveryProviderArg> for DiscoveryProviderKind {
     fn from(value: DiscoveryProviderArg) -> Self {
         match value {
-            DiscoveryProviderArg::Serper      => DiscoveryProviderKind::Serper,
-            DiscoveryProviderArg::Exa         => DiscoveryProviderKind::Exa,
-            DiscoveryProviderArg::SeedFile    => DiscoveryProviderKind::SeedFile,
-            DiscoveryProviderArg::Censys      => DiscoveryProviderKind::Censys,
-            DiscoveryProviderArg::VirusTotal  => DiscoveryProviderKind::VirusTotal,
+            DiscoveryProviderArg::Serper => DiscoveryProviderKind::Serper,
+            DiscoveryProviderArg::Exa => DiscoveryProviderKind::Exa,
+            DiscoveryProviderArg::SeedFile => DiscoveryProviderKind::SeedFile,
+            DiscoveryProviderArg::Censys => DiscoveryProviderKind::Censys,
+            DiscoveryProviderArg::VirusTotal => DiscoveryProviderKind::VirusTotal,
         }
     }
 }

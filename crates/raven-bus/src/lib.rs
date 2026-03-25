@@ -31,7 +31,9 @@ impl RavenBus {
     /// Publish an event.  Returns an error if there are no subscribers.
     pub fn publish(&self, event: BusEvent) -> Result<usize, OsintError> {
         debug!(event_type = %event_type_name(&event), "bus: publishing event");
-        self.tx.send(event).map_err(|e| OsintError::Bus(e.to_string()))
+        self.tx
+            .send(event)
+            .map_err(|e| OsintError::Bus(e.to_string()))
     }
 
     /// Subscribe and receive a fresh receiver.
@@ -83,16 +85,16 @@ impl BusReceiver {
 
 fn event_type_name(e: &BusEvent) -> &'static str {
     match e {
-        BusEvent::TargetQueued(_)      => "TargetQueued",
-        BusEvent::DiscoveryQueued(_)   => "DiscoveryQueued",
+        BusEvent::TargetQueued(_) => "TargetQueued",
+        BusEvent::DiscoveryQueued(_) => "DiscoveryQueued",
         BusEvent::DiscoveryUrlsFound { .. } => "DiscoveryUrlsFound",
         BusEvent::DiscoveryComplete(_) => "DiscoveryComplete",
         BusEvent::DiscoveryFailed { .. } => "DiscoveryFailed",
-        BusEvent::ScrapeDone(_)        => "ScrapeDone",
-        BusEvent::AgentDone { .. }     => "AgentDone",
-        BusEvent::LlmVerified { .. }   => "LlmVerified",
+        BusEvent::ScrapeDone(_) => "ScrapeDone",
+        BusEvent::AgentDone { .. } => "AgentDone",
+        BusEvent::LlmVerified { .. } => "LlmVerified",
         BusEvent::PipelineComplete { .. } => "PipelineComplete",
-        BusEvent::PipelineFailed { .. }   => "PipelineFailed",
+        BusEvent::PipelineFailed { .. } => "PipelineFailed",
     }
 }
 
@@ -113,7 +115,8 @@ mod tests {
         let target = OsintTarget::new("https://example.com");
         let id = target.id;
 
-        bus.publish(BusEvent::TargetQueued(target)).expect("publish failed");
+        bus.publish(BusEvent::TargetQueued(target))
+            .expect("publish failed");
 
         let event = rx.recv().await.expect("no event").expect("recv error");
         match event {

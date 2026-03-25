@@ -52,21 +52,27 @@ use utoipa_swagger_ui::SwaggerUi;
 pub struct ApiDoc;
 
 pub fn router(state: Arc<AppState>) -> Router {
-	Router::new()
-	.route("/health", get(routes::health::health))
-	.route("/discover", axum::routing::post(routes::discovery::submit_discovery))
-	.route("/discoveries", get(routes::discovery::list_discoveries))
-	.route("/discoveries/:job_id", get(routes::discovery::get_discovery))
-	.route("/scan", axum::routing::post(routes::scan::submit_scan))
-	.route("/results", get(routes::results::list_results))
-	.route("/results/:job_id", get(routes::results::get_result))
-		.merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
-		.layer(TraceLayer::new_for_http())
-		.layer(CorsLayer::permissive())
-		.with_state(state)
+    Router::new()
+        .route("/health", get(routes::health::health))
+        .route(
+            "/discover",
+            axum::routing::post(routes::discovery::submit_discovery),
+        )
+        .route("/discoveries", get(routes::discovery::list_discoveries))
+        .route(
+            "/discoveries/:job_id",
+            get(routes::discovery::get_discovery),
+        )
+        .route("/scan", axum::routing::post(routes::scan::submit_scan))
+        .route("/results", get(routes::results::list_results))
+        .route("/results/:job_id", get(routes::results::get_result))
+        .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
+        .layer(TraceLayer::new_for_http())
+        .layer(CorsLayer::permissive())
+        .with_state(state)
 }
 
 pub async fn serve(state: Arc<AppState>, addr: SocketAddr) -> Result<(), std::io::Error> {
-	let listener = tokio::net::TcpListener::bind(addr).await?;
-	axum::serve(listener, router(state)).await
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, router(state)).await
 }

@@ -146,36 +146,78 @@ impl ResultStore for PostgresStore {
         .map_err(|e| OsintError::Database(e.to_string()))?;
 
         let job = JobRow {
-            id:           job_row.try_get("id").map_err(|e| OsintError::Database(e.to_string()))?,
-            url:          job_row.try_get("url").map_err(|e| OsintError::Database(e.to_string()))?,
-            tags:         job_row.try_get("tags").map_err(|e| OsintError::Database(e.to_string()))?,
-            metadata:     job_row.try_get("metadata").map_err(|e| OsintError::Database(e.to_string()))?,
-            submitted_at: job_row.try_get("submitted_at").map_err(|e| OsintError::Database(e.to_string()))?,
-            completed_at: job_row.try_get("completed_at").map_err(|e| OsintError::Database(e.to_string()))?,
-            status:       job_row.try_get("status").map_err(|e| OsintError::Database(e.to_string()))?,
+            id: job_row
+                .try_get("id")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            url: job_row
+                .try_get("url")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            tags: job_row
+                .try_get("tags")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            metadata: job_row
+                .try_get("metadata")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            submitted_at: job_row
+                .try_get("submitted_at")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            completed_at: job_row
+                .try_get("completed_at")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            status: job_row
+                .try_get("status")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
         };
 
         let res = ResultRow {
-            job_id:         result_row.try_get("job_id").map_err(|e| OsintError::Database(e.to_string()))?,
-            status:         result_row.try_get("status").map_err(|e| OsintError::Database(e.to_string()))?,
-            confidence:     result_row.try_get("confidence").map_err(|e| OsintError::Database(e.to_string()))?,
-            llm_status:     result_row.try_get("llm_status").map_err(|e| OsintError::Database(e.to_string()))?,
-            llm_confidence: result_row.try_get("llm_confidence").map_err(|e| OsintError::Database(e.to_string()))?,
-            llm_reasoning:  result_row.try_get("llm_reasoning").map_err(|e| OsintError::Database(e.to_string()))?,
-            scraper_output: result_row.try_get("scraper_output").map_err(|e| OsintError::Database(e.to_string()))?,
-            completed_at:   result_row.try_get("completed_at").map_err(|e| OsintError::Database(e.to_string()))?,
+            job_id: result_row
+                .try_get("job_id")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            status: result_row
+                .try_get("status")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            confidence: result_row
+                .try_get("confidence")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            llm_status: result_row
+                .try_get("llm_status")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            llm_confidence: result_row
+                .try_get("llm_confidence")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            llm_reasoning: result_row
+                .try_get("llm_reasoning")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            scraper_output: result_row
+                .try_get("scraper_output")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            completed_at: result_row
+                .try_get("completed_at")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
         };
 
         let agents: Vec<AgentRow> = agent_rows
             .iter()
             .map(|r| -> Result<AgentRow, OsintError> {
                 Ok(AgentRow {
-                    id:               r.try_get("id").map_err(|e| OsintError::Database(e.to_string()))?,
-                    job_id:           r.try_get("job_id").map_err(|e| OsintError::Database(e.to_string()))?,
-                    agent_name:       r.try_get("agent_name").map_err(|e| OsintError::Database(e.to_string()))?,
-                    passed:           r.try_get("passed").map_err(|e| OsintError::Database(e.to_string()))?,
-                    confidence_delta: r.try_get("confidence_delta").map_err(|e| OsintError::Database(e.to_string()))?,
-                    details:          r.try_get("details").map_err(|e| OsintError::Database(e.to_string()))?,
+                    id: r
+                        .try_get("id")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    job_id: r
+                        .try_get("job_id")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    agent_name: r
+                        .try_get("agent_name")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    passed: r
+                        .try_get("passed")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    confidence_delta: r
+                        .try_get("confidence_delta")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    details: r
+                        .try_get("details")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
                 })
             })
             .collect::<Result<_, _>>()?;
@@ -184,20 +226,21 @@ impl ResultStore for PostgresStore {
     }
 
     async fn list(&self, params: ListParams) -> Result<Vec<ValidationResult>, OsintError> {
-        let rows = sqlx::query(
-            "SELECT id FROM scan_jobs ORDER BY submitted_at DESC LIMIT $1 OFFSET $2",
-        )
-        .bind(params.limit)
-        .bind(params.offset)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| OsintError::Database(e.to_string()))?;
+        let rows =
+            sqlx::query("SELECT id FROM scan_jobs ORDER BY submitted_at DESC LIMIT $1 OFFSET $2")
+                .bind(params.limit)
+                .bind(params.offset)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {
-            let id_str: String = row.try_get("id").map_err(|e| OsintError::Database(e.to_string()))?;
-            let id = Uuid::parse_str(&id_str)
-                .map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
+            let id_str: String = row
+                .try_get("id")
+                .map_err(|e| OsintError::Database(e.to_string()))?;
+            let id =
+                Uuid::parse_str(&id_str).map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
             results.push(self.find_by_id(id).await?);
         }
         Ok(results)
@@ -205,9 +248,21 @@ impl ResultStore for PostgresStore {
 
     async fn delete(&self, job_id: Uuid) -> Result<(), OsintError> {
         let id = job_id.to_string();
-        sqlx::query("DELETE FROM agent_reports WHERE job_id = $1").bind(&id).execute(&self.pool).await.map_err(|e| OsintError::Database(e.to_string()))?;
-        sqlx::query("DELETE FROM validation_results WHERE job_id = $1").bind(&id).execute(&self.pool).await.map_err(|e| OsintError::Database(e.to_string()))?;
-        sqlx::query("DELETE FROM scan_jobs WHERE id = $1").bind(&id).execute(&self.pool).await.map_err(|e| OsintError::Database(e.to_string()))?;
+        sqlx::query("DELETE FROM agent_reports WHERE job_id = $1")
+            .bind(&id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OsintError::Database(e.to_string()))?;
+        sqlx::query("DELETE FROM validation_results WHERE job_id = $1")
+            .bind(&id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OsintError::Database(e.to_string()))?;
+        sqlx::query("DELETE FROM scan_jobs WHERE id = $1")
+            .bind(&id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OsintError::Database(e.to_string()))?;
         Ok(())
     }
 
@@ -216,7 +271,9 @@ impl ResultStore for PostgresStore {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| OsintError::Database(e.to_string()))?;
-        let cnt: i64 = row.try_get("cnt").map_err(|e| OsintError::Database(e.to_string()))?;
+        let cnt: i64 = row
+            .try_get("cnt")
+            .map_err(|e| OsintError::Database(e.to_string()))?;
         Ok(cnt)
     }
 
@@ -284,19 +341,33 @@ impl ResultStore for PostgresStore {
         .map_err(|e| OsintError::Database(e.to_string()))?;
 
         let job = DiscoveryJobRow {
-            job_id: job_row.try_get("job_id").map_err(|e| OsintError::Database(e.to_string()))?,
-            request_json: job_row.try_get("request_json").map_err(|e| OsintError::Database(e.to_string()))?,
-            total_discovered: job_row.try_get("total_discovered").map_err(|e| OsintError::Database(e.to_string()))?,
-            completed_at: job_row.try_get("completed_at").map_err(|e| OsintError::Database(e.to_string()))?,
+            job_id: job_row
+                .try_get("job_id")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            request_json: job_row
+                .try_get("request_json")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            total_discovered: job_row
+                .try_get("total_discovered")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
+            completed_at: job_row
+                .try_get("completed_at")
+                .map_err(|e| OsintError::Database(e.to_string()))?,
         };
 
         let urls: Vec<DiscoveredUrlRow> = url_rows
             .iter()
             .map(|row| -> Result<DiscoveredUrlRow, OsintError> {
                 Ok(DiscoveredUrlRow {
-                    id: row.try_get("id").map_err(|e| OsintError::Database(e.to_string()))?,
-                    job_id: row.try_get("job_id").map_err(|e| OsintError::Database(e.to_string()))?,
-                    payload: row.try_get("payload").map_err(|e| OsintError::Database(e.to_string()))?,
+                    id: row
+                        .try_get("id")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    job_id: row
+                        .try_get("job_id")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    payload: row
+                        .try_get("payload")
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
                 })
             })
             .collect::<Result<_, _>>()?;
@@ -304,7 +375,10 @@ impl ResultStore for PostgresStore {
         rows_to_discovery(job, urls)
     }
 
-    async fn list_discoveries(&self, params: ListParams) -> Result<Vec<DiscoveryResult>, OsintError> {
+    async fn list_discoveries(
+        &self,
+        params: ListParams,
+    ) -> Result<Vec<DiscoveryResult>, OsintError> {
         let rows = sqlx::query(
             "SELECT job_id FROM discovery_jobs ORDER BY completed_at DESC LIMIT $1 OFFSET $2",
         )
@@ -316,9 +390,11 @@ impl ResultStore for PostgresStore {
 
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {
-            let id_str: String = row.try_get("job_id").map_err(|e| OsintError::Database(e.to_string()))?;
-            let id = Uuid::parse_str(&id_str)
-                .map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
+            let id_str: String = row
+                .try_get("job_id")
+                .map_err(|e| OsintError::Database(e.to_string()))?;
+            let id =
+                Uuid::parse_str(&id_str).map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
             results.push(self.find_discovery_by_id(id).await?);
         }
 
@@ -330,7 +406,9 @@ impl ResultStore for PostgresStore {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| OsintError::Database(e.to_string()))?;
-        let cnt: i64 = row.try_get("cnt").map_err(|e| OsintError::Database(e.to_string()))?;
+        let cnt: i64 = row
+            .try_get("cnt")
+            .map_err(|e| OsintError::Database(e.to_string()))?;
         Ok(cnt)
     }
 }

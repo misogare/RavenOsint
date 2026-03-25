@@ -78,10 +78,7 @@ impl AgentOrchestrator {
             }
         }
 
-        info!(
-            count = reports.len(),
-            "orchestrator: all agents completed"
-        );
+        info!(count = reports.len(), "orchestrator: all agents completed");
 
         Ok(reports)
     }

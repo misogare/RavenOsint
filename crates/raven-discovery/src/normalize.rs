@@ -10,7 +10,10 @@ pub fn normalize_url(input: &str) -> Result<String, OsintError> {
     url.set_fragment(None);
 
     // Normalize default ports away.
-    let is_default_port = matches!((url.scheme(), url.port()), ("http", Some(80)) | ("https", Some(443)));
+    let is_default_port = matches!(
+        (url.scheme(), url.port()),
+        ("http", Some(80)) | ("https", Some(443))
+    );
     if is_default_port {
         let _ = url.set_port(None);
     }
@@ -43,6 +46,9 @@ mod tests {
 
     #[test]
     fn extracts_domain() {
-        assert_eq!(extract_domain("https://sub.example.com/path").as_deref(), Some("sub.example.com"));
+        assert_eq!(
+            extract_domain("https://sub.example.com/path").as_deref(),
+            Some("sub.example.com")
+        );
     }
 }

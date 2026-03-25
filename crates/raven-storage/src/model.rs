@@ -1,8 +1,8 @@
 //! Shared serialisation helpers used by both SQLite and PostgreSQL backends.
 
 use raven_core::{
-    AgentReport, DiscoveredUrl, DiscoveryResult, LlmVerdict, OsintError, ScraperOutput,
-    SiteStatus, ValidationResult,
+    AgentReport, DiscoveredUrl, DiscoveryResult, LlmVerdict, OsintError, ScraperOutput, SiteStatus,
+    ValidationResult,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -12,33 +12,33 @@ use uuid::Uuid;
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub struct JobRow {
-    pub id:           String,
-    pub url:          String,
-    pub tags:         String, // JSON
-    pub metadata:     String, // JSON
+    pub id: String,
+    pub url: String,
+    pub tags: String,         // JSON
+    pub metadata: String,     // JSON
     pub submitted_at: String, // ISO-8601
     pub completed_at: Option<String>,
-    pub status:       String,
+    pub status: String,
 }
 
 pub struct ResultRow {
-    pub job_id:         String,
-    pub status:         String,
-    pub confidence:     f64,
-    pub llm_status:     String,
+    pub job_id: String,
+    pub status: String,
+    pub confidence: f64,
+    pub llm_status: String,
     pub llm_confidence: f64,
-    pub llm_reasoning:  String,
+    pub llm_reasoning: String,
     pub scraper_output: Option<String>, // JSON
-    pub completed_at:   String,
+    pub completed_at: String,
 }
 
 pub struct AgentRow {
-    pub id:               String,
-    pub job_id:           String,
-    pub agent_name:       String,
-    pub passed:           i64,
+    pub id: String,
+    pub job_id: String,
+    pub agent_name: String,
+    pub passed: i64,
     pub confidence_delta: f64,
-    pub details:          String, // JSON
+    pub details: String, // JSON
 }
 
 pub struct DiscoveryJobRow {
@@ -60,33 +60,35 @@ pub struct DiscoveredUrlRow {
 
 pub fn status_to_str(s: &SiteStatus) -> &'static str {
     match s {
-        SiteStatus::Active     => "active",
+        SiteStatus::Active => "active",
         SiteStatus::Suspicious => "suspicious",
-        SiteStatus::Down       => "down",
-        SiteStatus::Malicious  => "malicious",
-        SiteStatus::Unknown    => "unknown",
+        SiteStatus::Down => "down",
+        SiteStatus::Malicious => "malicious",
+        SiteStatus::Unknown => "unknown",
     }
 }
 
 pub fn str_to_status(s: &str) -> SiteStatus {
     match s {
-        "active"     => SiteStatus::Active,
+        "active" => SiteStatus::Active,
         "suspicious" => SiteStatus::Suspicious,
-        "down"       => SiteStatus::Down,
-        "malicious"  => SiteStatus::Malicious,
-        _            => SiteStatus::Unknown,
+        "down" => SiteStatus::Down,
+        "malicious" => SiteStatus::Malicious,
+        _ => SiteStatus::Unknown,
     }
 }
 
-pub fn result_to_rows(r: &ValidationResult) -> Result<(JobRow, ResultRow, Vec<AgentRow>), OsintError> {
+pub fn result_to_rows(
+    r: &ValidationResult,
+) -> Result<(JobRow, ResultRow, Vec<AgentRow>), OsintError> {
     let job = JobRow {
-        id:           r.job_id.to_string(),
-        url:          r.target.url.clone(),
-        tags:         serde_json::to_string(&r.target.tags)?,
-        metadata:     serde_json::to_string(&r.target.metadata)?,
+        id: r.job_id.to_string(),
+        url: r.target.url.clone(),
+        tags: serde_json::to_string(&r.target.tags)?,
+        metadata: serde_json::to_string(&r.target.metadata)?,
         submitted_at: r.target.submitted_at.to_rfc3339(),
         completed_at: Some(r.completed_at.to_rfc3339()),
-        status:       status_to_str(&r.status).to_string(),
+        status: status_to_str(&r.status).to_string(),
     };
 
     let scraper_json = r
@@ -96,14 +98,14 @@ pub fn result_to_rows(r: &ValidationResult) -> Result<(JobRow, ResultRow, Vec<Ag
         .transpose()?;
 
     let result = ResultRow {
-        job_id:         r.job_id.to_string(),
-        status:         status_to_str(&r.status).to_string(),
-        confidence:     r.confidence as f64,
-        llm_status:     status_to_str(&r.llm_verdict.status).to_string(),
+        job_id: r.job_id.to_string(),
+        status: status_to_str(&r.status).to_string(),
+        confidence: r.confidence as f64,
+        llm_status: status_to_str(&r.llm_verdict.status).to_string(),
         llm_confidence: r.llm_verdict.confidence as f64,
-        llm_reasoning:  r.llm_verdict.reasoning.clone(),
+        llm_reasoning: r.llm_verdict.reasoning.clone(),
         scraper_output: scraper_json,
-        completed_at:   r.completed_at.to_rfc3339(),
+        completed_at: r.completed_at.to_rfc3339(),
     };
 
     let agents: Result<Vec<AgentRow>, OsintError> = r
@@ -111,12 +113,12 @@ pub fn result_to_rows(r: &ValidationResult) -> Result<(JobRow, ResultRow, Vec<Ag
         .iter()
         .map(|ar| {
             Ok(AgentRow {
-                id:               Uuid::new_v4().to_string(),
-                job_id:           r.job_id.to_string(),
-                agent_name:       ar.agent_name.clone(),
-                passed:           ar.passed as i64,
+                id: Uuid::new_v4().to_string(),
+                job_id: r.job_id.to_string(),
+                agent_name: ar.agent_name.clone(),
+                passed: ar.passed as i64,
                 confidence_delta: ar.confidence_delta as f64,
-                details:          serde_json::to_string(&ar.details)?,
+                details: serde_json::to_string(&ar.details)?,
             })
         })
         .collect();
@@ -131,10 +133,8 @@ pub fn rows_to_result(
     result: ResultRow,
     agent_rows: Vec<AgentRow>,
 ) -> Result<ValidationResult, OsintError> {
-    let tags: Vec<String> = serde_json::from_str(&job.tags)
-        .unwrap_or_default();
-    let metadata: HashMap<String, String> = serde_json::from_str(&job.metadata)
-        .unwrap_or_default();
+    let tags: Vec<String> = serde_json::from_str(&job.tags).unwrap_or_default();
+    let metadata: HashMap<String, String> = serde_json::from_str(&job.metadata).unwrap_or_default();
     let submitted_at = chrono::DateTime::parse_from_rfc3339(&job.submitted_at)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .map_err(|e| OsintError::Database(format!("submitted_at parse: {e}")))?;
@@ -142,12 +142,12 @@ pub fn rows_to_result(
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .map_err(|e| OsintError::Database(format!("completed_at parse: {e}")))?;
 
-    let job_id = Uuid::parse_str(&job.id)
-        .map_err(|e| OsintError::Database(format!("uuid parse: {e}")))?;
+    let job_id =
+        Uuid::parse_str(&job.id).map_err(|e| OsintError::Database(format!("uuid parse: {e}")))?;
 
     let target = raven_core::OsintTarget {
-        id:           job_id,
-        url:          job.url,
+        id: job_id,
+        url: job.url,
         tags,
         metadata,
         submitted_at,
@@ -163,11 +163,11 @@ pub fn rows_to_result(
     let agent_reports: Result<Vec<AgentReport>, OsintError> = agent_rows
         .into_iter()
         .map(|ar| {
-            let details: HashMap<String, String> = serde_json::from_str(&ar.details)
-                .unwrap_or_default();
+            let details: HashMap<String, String> =
+                serde_json::from_str(&ar.details).unwrap_or_default();
             Ok(AgentReport {
-                agent_name:       ar.agent_name,
-                passed:           ar.passed != 0,
+                agent_name: ar.agent_name,
+                passed: ar.passed != 0,
                 confidence_delta: ar.confidence_delta as f32,
                 details,
             })
@@ -175,9 +175,9 @@ pub fn rows_to_result(
         .collect();
 
     let llm_verdict = LlmVerdict {
-        status:     str_to_status(&result.llm_status),
+        status: str_to_status(&result.llm_status),
         confidence: result.llm_confidence as f32,
-        reasoning:  result.llm_reasoning,
+        reasoning: result.llm_reasoning,
     };
 
     Ok(ValidationResult {
@@ -186,13 +186,15 @@ pub fn rows_to_result(
         scraper_output,
         agent_reports: agent_reports?,
         llm_verdict,
-        status:      str_to_status(&result.status),
-        confidence:  result.confidence as f32,
+        status: str_to_status(&result.status),
+        confidence: result.confidence as f32,
         completed_at,
     })
 }
 
-pub fn discovery_to_rows(result: &DiscoveryResult) -> Result<(DiscoveryJobRow, Vec<DiscoveredUrlRow>), OsintError> {
+pub fn discovery_to_rows(
+    result: &DiscoveryResult,
+) -> Result<(DiscoveryJobRow, Vec<DiscoveredUrlRow>), OsintError> {
     let job = DiscoveryJobRow {
         job_id: result.job_id.to_string(),
         request_json: serde_json::to_string(&result.request)?,

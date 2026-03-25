@@ -18,10 +18,10 @@ use crate::normalize::{extract_domain, normalize_url};
 ///
 /// Note: No org ID required for personal accounts. Free tier = 250 queries/month.
 pub struct CensysProvider {
-    client:          Client,
-    api_key:         String,
-    api_secret:      String,
-    base_url:        String,
+    client: Client,
+    api_key: String,
+    api_secret: String,
+    base_url: String,
     organization_id: Option<String>,
 }
 
@@ -51,9 +51,9 @@ struct CensysV3Hit {
 
 #[derive(Debug, Deserialize)]
 struct CensysV3Service {
-    port:         Option<u16>,
+    port: Option<u16>,
     service_name: Option<String>,
-    tls:          Option<CensysV3Tls>,
+    tls: Option<CensysV3Tls>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,8 +78,7 @@ impl CensysProvider {
     pub fn new(config: &DiscoveryConfig) -> Result<Self, OsintError> {
         if config.censys.api_key.is_empty() {
             return Err(OsintError::Config(
-                "censys api_key is empty; set RAVEN__DISCOVERY__CENSYS__API_KEY"
-                    .into(),
+                "censys api_key is empty; set RAVEN__DISCOVERY__CENSYS__API_KEY".into(),
             ));
         }
         let client = Client::builder()
@@ -120,13 +119,20 @@ impl CensysProvider {
         }
     }
 
-    fn hit_to_urls(&self, hit: &CensysV3Hit, request: &DiscoveryRequest, rank: u32) -> Vec<DiscoveredUrl> {
+    fn hit_to_urls(
+        &self,
+        hit: &CensysV3Hit,
+        request: &DiscoveryRequest,
+        rank: u32,
+    ) -> Vec<DiscoveredUrl> {
         let ip = hit.ip.as_deref().unwrap_or("unknown");
         let mut hostnames = hit.names.clone();
 
         if hostnames.is_empty() {
             for svc in &hit.services {
-                if let Some(names) = svc.tls.as_ref()
+                if let Some(names) = svc
+                    .tls
+                    .as_ref()
                     .and_then(|t| t.certificates.as_ref())
                     .and_then(|c| c.leaf_data.as_ref())
                     .map(|l| &l.names)
@@ -136,39 +142,56 @@ impl CensysProvider {
             }
         }
         if hostnames.is_empty() {
-            if let Some(ip_str) = &hit.ip { hostnames.push(ip_str.clone()); }
+            if let Some(ip_str) = &hit.ip {
+                hostnames.push(ip_str.clone());
+            }
         }
 
         let mut urls = Vec::new();
         for svc in &hit.services {
             let port = svc.port.unwrap_or(0);
             let scheme = match (svc.service_name.as_deref(), svc.tls.is_some(), port) {
-                (_, true, _)       => "https",
-                (_, _, 443)        => "https",
-                (_, _, 80)         => "http",
+                (_, true, _) => "https",
+                (_, _, 443) => "https",
+                (_, _, 80) => "http",
                 (Some("HTTP"), ..) => "http",
-                _                  => continue,
+                _ => continue,
             };
 
             for host in &hostnames {
                 let raw = if (scheme == "http" && port != 80 && port != 0)
                     || (scheme == "https" && port != 443 && port != 0)
-                { format!("{scheme}://{host}:{port}/") } else { format!("{scheme}://{host}/") };
+                {
+                    format!("{scheme}://{host}:{port}/")
+                } else {
+                    format!("{scheme}://{host}/")
+                };
 
-                let normalized = match normalize_url(&raw) { Ok(u) => u, Err(_) => continue };
+                let normalized = match normalize_url(&raw) {
+                    Ok(u) => u,
+                    Err(_) => continue,
+                };
                 urls.push(DiscoveredUrl {
                     domain: extract_domain(&normalized).unwrap_or_default(),
-                    url: normalized, title: None,
+                    url: normalized,
+                    title: None,
                     snippet: Some(format!(
                         "Censys: {} — port {} | labels: {}",
-                        ip, port,
-                        if hit.labels.is_empty() { "none".into() } else { hit.labels.join(", ") }
+                        ip,
+                        port,
+                        if hit.labels.is_empty() {
+                            "none".into()
+                        } else {
+                            hit.labels.join(", ")
+                        }
                     )),
-                    provider:       DiscoveryProviderKind::Censys,
+                    provider: DiscoveryProviderKind::Censys,
                     discovery_type: DiscoveryType::CensysAsset,
-                    source_query:   request.query.clone(),
-                    source_url:     None, rank: Some(rank), confidence: 0.75,
-                    discovered_at:  Utc::now(),
+                    source_query: request.query.clone(),
+                    source_url: None,
+                    rank: Some(rank),
+                    confidence: 0.75,
+                    discovered_at: Utc::now(),
                 });
             }
         }
@@ -223,18 +246,29 @@ impl CensysProvider {
         for (i, hit) in hits.iter().enumerate() {
             for u in self.hit_to_urls(hit, request, (i + 1) as u32) {
                 urls.push(u);
-                if urls.len() >= request.limit { break; }
+                if urls.len() >= request.limit {
+                    break;
+                }
             }
-            if urls.len() >= request.limit { break; }
+            if urls.len() >= request.limit {
+                break;
+            }
         }
 
         Ok(DiscoveryResult {
-            job_id: request.job_id, request: request.clone(),
-            total_discovered: urls.len(), urls, completed_at: Utc::now(),
+            job_id: request.job_id,
+            request: request.clone(),
+            total_discovered: urls.len(),
+            urls,
+            completed_at: Utc::now(),
         })
     }
 
-    async fn search_v2(&self, query: &str, per_page: usize) -> Result<reqwest::Response, OsintError> {
+    async fn search_v2(
+        &self,
+        query: &str,
+        per_page: usize,
+    ) -> Result<reqwest::Response, OsintError> {
         let endpoint = format!("{}/hosts/search", self.base_url);
         tracing::debug!(endpoint = %endpoint, query = %query, "censys: sending v2 request");
 
@@ -248,13 +282,19 @@ impl CensysProvider {
             req = req.basic_auth(&self.api_key, Some(&self.api_secret));
         } else {
             // PAT flow for accounts issuing bearer tokens.
-            req = req.bearer_auth(&self.api_key).header("x-auth-token", &self.api_key);
+            req = req
+                .bearer_auth(&self.api_key)
+                .header("x-auth-token", &self.api_key);
         }
 
         req.send().await.map_err(OsintError::Http)
     }
 
-    async fn search_v3(&self, query: &str, per_page: usize) -> Result<reqwest::Response, OsintError> {
+    async fn search_v3(
+        &self,
+        query: &str,
+        per_page: usize,
+    ) -> Result<reqwest::Response, OsintError> {
         let endpoint = format!("{}/global/search/query", self.base_url);
         tracing::debug!(endpoint = %endpoint, query = %query, "censys: sending v3 request");
 
@@ -264,7 +304,8 @@ impl CensysProvider {
             "page_size": per_page,
         });
 
-        let mut req = self.client
+        let mut req = self
+            .client
             .post(&endpoint)
             .bearer_auth(&self.api_key)
             .header("x-auth-token", &self.api_key)
@@ -292,12 +333,20 @@ fn truncate_body(input: &str) -> String {
 }
 
 fn empty_result(r: &DiscoveryRequest) -> DiscoveryResult {
-    DiscoveryResult { job_id: r.job_id, request: r.clone(), urls: vec![], total_discovered: 0, completed_at: Utc::now() }
+    DiscoveryResult {
+        job_id: r.job_id,
+        request: r.clone(),
+        urls: vec![],
+        total_discovered: 0,
+        completed_at: Utc::now(),
+    }
 }
 
 #[async_trait]
 impl SearchProvider for CensysProvider {
-    fn name(&self) -> &str { "censys" }
+    fn name(&self) -> &str {
+        "censys"
+    }
     async fn search(&self, req: &DiscoveryRequest) -> Result<Vec<DiscoveredUrl>, OsintError> {
         self.do_search(req).await.map(|r| r.urls)
     }
@@ -305,7 +354,9 @@ impl SearchProvider for CensysProvider {
 
 #[async_trait]
 impl DiscoveryPlugin for CensysProvider {
-    fn name(&self) -> &str { "censys" }
+    fn name(&self) -> &str {
+        "censys"
+    }
     async fn discover(&self, req: &DiscoveryRequest) -> Result<DiscoveryResult, OsintError> {
         self.do_search(req).await
     }
@@ -319,8 +370,10 @@ mod tests {
     fn config() -> DiscoveryConfig {
         DiscoveryConfig {
             censys: DiscoveryProviderConfig {
-                enabled: true, base_url: "https://search.censys.io/api/v2".into(),
-                api_key: "test-pat".into(), api_secret: String::new(),
+                enabled: true,
+                base_url: "https://search.censys.io/api/v2".into(),
+                api_key: "test-pat".into(),
+                api_secret: String::new(),
             },
             ..DiscoveryConfig::default()
         }
@@ -342,26 +395,39 @@ mod tests {
         assert!(p.has_v2_secret());
     }
 
-    #[test] fn domain_query_contains_site() {
+    #[test]
+    fn domain_query_contains_site() {
         let p = CensysProvider::new(&config()).unwrap();
         let mut req = DiscoveryRequest::new("x");
         req.site = Some("example.com".into());
         assert!(p.build_query(&req).contains("example.com"));
     }
-    #[test] fn raw_query_passthrough() {
+    #[test]
+    fn raw_query_passthrough() {
         let p = CensysProvider::new(&config()).unwrap();
-        assert_eq!(p.build_query(&DiscoveryRequest::new("services.port: 443")), "services.port: 443");
+        assert_eq!(
+            p.build_query(&DiscoveryRequest::new("services.port: 443")),
+            "services.port: 443"
+        );
     }
-    #[test] fn fails_without_key() {
-        let mut c = config(); c.censys.api_key = String::new();
+    #[test]
+    fn fails_without_key() {
+        let mut c = config();
+        c.censys.api_key = String::new();
         assert!(CensysProvider::new(&c).is_err());
     }
-    #[test] fn http_hit_produces_url() {
+    #[test]
+    fn http_hit_produces_url() {
         let p = CensysProvider::new(&config()).unwrap();
         let hit = CensysV3Hit {
-            ip: Some("1.2.3.4".into()), names: vec!["ex.com".into()],
-            services: vec![CensysV3Service { port: Some(80),
-                service_name: Some("HTTP".into()), tls: None }], labels: vec![],
+            ip: Some("1.2.3.4".into()),
+            names: vec!["ex.com".into()],
+            services: vec![CensysV3Service {
+                port: Some(80),
+                service_name: Some("HTTP".into()),
+                tls: None,
+            }],
+            labels: vec![],
         };
         let urls = p.hit_to_urls(&hit, &DiscoveryRequest::new("t"), 1);
         assert_eq!(urls.len(), 1);

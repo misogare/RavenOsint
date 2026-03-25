@@ -290,7 +290,10 @@ mod tests {
         assert_eq!(result.urls[0].provider, DiscoveryProviderKind::Exa);
         assert_eq!(result.urls[0].domain, "www.apple.com");
         // Summary should be preferred over highlight.
-        assert_eq!(result.urls[0].snippet.as_deref(), Some("Official Apple site"));
+        assert_eq!(
+            result.urls[0].snippet.as_deref(),
+            Some("Official Apple site")
+        );
         assert_eq!(result.urls[0].rank, Some(1));
     }
 

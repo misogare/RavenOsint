@@ -5,12 +5,11 @@ use futures::stream::{self, StreamExt};
 use raven_agent::{AgentOrchestrator, AvailabilityAgent, ContentAnalyzerAgent, SslAgent};
 use raven_bus::RavenBus;
 use raven_core::{
-    BusEvent, DiscoveredUrl, DiscoveryRequest, DiscoveryResult, LlmContext, LlmProvider,
-    LlmVerdict, OsintError, OsintTarget, RavenConfig, ScraperPlugin, SiteStatus,
-    ValidationResult,
+    BusEvent, DiscoveredUrl, DiscoveryRequest, DiscoveryResult, DynLlm, LlmContext, LlmVerdict,
+    OsintError, OsintTarget, RavenConfig, ScraperPlugin, SiteStatus, ValidationResult,
 };
 use raven_discovery::DiscoveryRuntime;
-use raven_llm::{build_agent_summary, DeepSeekProvider};
+use raven_llm::{build_agent_summary, build_provider};
 use raven_scraper::{extract::truncate, RavenScraper};
 use raven_storage::ResultStore;
 use serde::Serialize;
@@ -30,7 +29,7 @@ pub struct PipelineRuntime {
     bus: RavenBus,
     scraper: RavenScraper,
     agents: AgentOrchestrator,
-    llm: Option<DeepSeekProvider>,
+    llm: Option<DynLlm>,
     store: Arc<dyn ResultStore>,
 }
 
@@ -42,12 +41,7 @@ impl PipelineRuntime {
             .register(Arc::new(SslAgent))
             .register(Arc::new(ContentAnalyzerAgent));
 
-        let llm =
-            if config.llm.provider.eq_ignore_ascii_case("deepseek") && !config.llm.api_key.is_empty() {
-                Some(DeepSeekProvider::new(&config.llm)?)
-            } else {
-                None
-            };
+        let llm = build_provider(&config.llm)?;
 
         Ok(Self {
             bus: RavenBus::new(),
@@ -225,7 +219,10 @@ impl WorkflowRuntime {
         })
     }
 
-    pub async fn validate_target(&self, target: OsintTarget) -> Result<ValidationResult, OsintError> {
+    pub async fn validate_target(
+        &self,
+        target: OsintTarget,
+    ) -> Result<ValidationResult, OsintError> {
         self.validation.execute(target).await
     }
 

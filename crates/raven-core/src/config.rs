@@ -22,29 +22,29 @@ pub struct DatabaseConfig {
 
 impl Default for DatabaseConfig {
     fn default() -> Self {
-        Self { url: "sqlite://raven.db".into() }
+        Self {
+            url: "sqlite://raven.db".into(),
+        }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ScraperConfig {
-    pub rate_rpm:       u32,
-    pub timeout_secs:   u64,
-    pub max_redirects:  u32,
-    pub user_agents:    Vec<String>,
-    pub proxies:        Vec<String>,
+    pub rate_rpm: u32,
+    pub timeout_secs: u64,
+    pub max_redirects: u32,
+    pub user_agents: Vec<String>,
+    pub proxies: Vec<String>,
 }
 
 impl Default for ScraperConfig {
     fn default() -> Self {
         Self {
-            rate_rpm:      10,
-            timeout_secs:  30,
+            rate_rpm: 10,
+            timeout_secs: 30,
             max_redirects: 10,
-            user_agents:   vec![
-                "Mozilla/5.0 (compatible; RavenOSINT/0.1)".into(),
-            ],
+            user_agents: vec!["Mozilla/5.0 (compatible; RavenOSINT/0.1)".into()],
             proxies: vec![],
         }
     }
@@ -53,23 +53,23 @@ impl Default for ScraperConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LlmConfig {
-    pub provider:    String,
-    pub base_url:    String,
-    pub model:       String,
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
     /// Never commit real keys — set via RAVEN__LLM__API_KEY env var.
-    pub api_key:     String,
-    pub max_tokens:  u32,
+    pub api_key: String,
+    pub max_tokens: u32,
     pub temperature: f32,
 }
 
 impl Default for LlmConfig {
     fn default() -> Self {
         Self {
-            provider:    "deepseek".into(),
-            base_url:    "https://api.deepseek.com/v1".into(),
-            model:       "deepseek-chat".into(),
-            api_key:     String::new(),
-            max_tokens:  1024,
+            provider: "deepseek".into(),
+            base_url: "https://api.deepseek.com/v1".into(),
+            model: "deepseek-chat".into(),
+            api_key: String::new(),
+            max_tokens: 1024,
             temperature: 0.2,
         }
     }
@@ -84,20 +84,26 @@ pub struct ApiConfig {
 
 impl Default for ApiConfig {
     fn default() -> Self {
-        Self { host: "127.0.0.1".into(), port: 3000 }
+        Self {
+            host: "127.0.0.1".into(),
+            port: 3000,
+        }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LoggingConfig {
-    pub level:  String,
+    pub level: String,
     pub format: String,
 }
 
 impl Default for LoggingConfig {
     fn default() -> Self {
-        Self { level: "info".into(), format: "pretty".into() }
+        Self {
+            level: "info".into(),
+            format: "pretty".into(),
+        }
     }
 }
 
@@ -105,10 +111,10 @@ impl Default for LoggingConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DiscoveryProviderConfig {
-    pub enabled:  bool,
+    pub enabled: bool,
     pub base_url: String,
     /// Primary API key. Never commit real values — prefer env overrides.
-    pub api_key:  String,
+    pub api_key: String,
     /// Optional secondary secret (used by Censys: App ID = api_key, Secret = api_secret).
     /// Left empty for providers that only need a single key.
     pub api_secret: String,
@@ -117,9 +123,9 @@ pub struct DiscoveryProviderConfig {
 impl Default for DiscoveryProviderConfig {
     fn default() -> Self {
         Self {
-            enabled:    false,
-            base_url:   String::new(),
-            api_key:    String::new(),
+            enabled: false,
+            base_url: String::new(),
+            api_key: String::new(),
             api_secret: String::new(),
         }
     }
@@ -128,53 +134,53 @@ impl Default for DiscoveryProviderConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DiscoveryConfig {
-    pub enabled:             bool,
-    pub default_provider:    String,
-    pub default_limit:       usize,
-    pub max_limit:           usize,
-    pub timeout_secs:        u64,
-    pub rate_rpm:            u32,
-    pub include_subdomains:  bool,
+    pub enabled: bool,
+    pub default_provider: String,
+    pub default_limit: usize,
+    pub max_limit: usize,
+    pub timeout_secs: u64,
+    pub rate_rpm: u32,
+    pub include_subdomains: bool,
     pub validate_by_default: bool,
-    pub serper:              DiscoveryProviderConfig,
-    pub exa:                 DiscoveryProviderConfig,
-    pub censys:              DiscoveryProviderConfig,
-    pub virus_total:         DiscoveryProviderConfig,
+    pub serper: DiscoveryProviderConfig,
+    pub exa: DiscoveryProviderConfig,
+    pub censys: DiscoveryProviderConfig,
+    pub virus_total: DiscoveryProviderConfig,
 }
 
 impl Default for DiscoveryConfig {
     fn default() -> Self {
         Self {
-            enabled:             true,
-            default_provider:    "serper".into(),
-            default_limit:       25,
-            max_limit:           100,
-            timeout_secs:        20,
-            rate_rpm:            30,
-            include_subdomains:  true,
+            enabled: true,
+            default_provider: "serper".into(),
+            default_limit: 25,
+            max_limit: 100,
+            timeout_secs: 20,
+            rate_rpm: 30,
+            include_subdomains: true,
             validate_by_default: false,
             serper: DiscoveryProviderConfig {
-                enabled:    true,
-                base_url:   "https://google.serper.dev/search".into(),
-                api_key:    String::new(),
+                enabled: true,
+                base_url: "https://google.serper.dev/search".into(),
+                api_key: String::new(),
                 api_secret: String::new(),
             },
             exa: DiscoveryProviderConfig {
-                enabled:    true,
-                base_url:   "https://api.exa.ai/search".into(),
-                api_key:    String::new(),
+                enabled: true,
+                base_url: "https://api.exa.ai/search".into(),
+                api_key: String::new(),
                 api_secret: String::new(),
             },
             censys: DiscoveryProviderConfig {
-                enabled:    false,
-                base_url:   "https://api.censys.io/v2".into(),
-                api_key:    String::new(), // Censys App ID
+                enabled: false,
+                base_url: "https://api.censys.io/v2".into(),
+                api_key: String::new(),    // Censys App ID
                 api_secret: String::new(), // Censys Secret
             },
             virus_total: DiscoveryProviderConfig {
-                enabled:    false,
-                base_url:   "https://www.virustotal.com/api/v3".into(),
-                api_key:    String::new(),
+                enabled: false,
+                base_url: "https://www.virustotal.com/api/v3".into(),
+                api_key: String::new(),
                 api_secret: String::new(),
             },
         }
@@ -188,12 +194,12 @@ impl Default for DiscoveryConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct RavenConfig {
-    pub database:  DatabaseConfig,
-    pub scraper:   ScraperConfig,
+    pub database: DatabaseConfig,
+    pub scraper: ScraperConfig,
     pub discovery: DiscoveryConfig,
-    pub llm:       LlmConfig,
-    pub api:       ApiConfig,
-    pub logging:   LoggingConfig,
+    pub llm: LlmConfig,
+    pub api: ApiConfig,
+    pub logging: LoggingConfig,
 }
 
 impl RavenConfig {
@@ -208,6 +214,7 @@ impl RavenConfig {
             .merge(Toml::file(config_path))
             .merge(Env::prefixed("RAVEN__").split("__"));
 
-        fig.extract::<Self>().map_err(|e| OsintError::Config(e.to_string()))
+        fig.extract::<Self>()
+            .map_err(|e| OsintError::Config(e.to_string()))
     }
 }

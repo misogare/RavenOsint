@@ -5,17 +5,17 @@
 
 pub mod config;
 pub mod error;
-pub mod types;
 pub mod traits;
+pub mod types;
 
 pub use config::{DiscoveryConfig, DiscoveryProviderConfig, RavenConfig};
 pub use error::OsintError;
-pub use types::{
-    AgentReport, BusEvent, DiscoveredUrl, DiscoveryProviderKind, DiscoveryRequest,
-    DiscoveryResult, DiscoveryType, LlmContext, LlmVerdict, OsintTarget, ScraperOutput,
-    SiteStatus, ValidationResult,
-};
 pub use traits::{
-    AgentPlugin, DiscoveryPlugin, DynAgent, DynDiscovery, DynLlm, DynScraper,
-    DynSearchProvider, LlmProvider, ScraperPlugin, SearchProvider,
+    AgentPlugin, DiscoveryPlugin, DynAgent, DynDiscovery, DynLlm, DynScraper, DynSearchProvider,
+    LlmProvider, ScraperPlugin, SearchProvider,
+};
+pub use types::{
+    AgentReport, BusEvent, DiscoveredUrl, DiscoveryProviderKind, DiscoveryRequest, DiscoveryResult,
+    DiscoveryType, LlmContext, LlmVerdict, OsintTarget, ScraperOutput, SiteStatus,
+    ValidationResult,
 };

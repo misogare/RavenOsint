@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 raven-core   = { workspace = true }
 async-openai = { workspace = true }
+reqwest      = { workspace = true }
 tera         = { workspace = true }
 tokio        = { workspace = true }
 serde        = { workspace = true }

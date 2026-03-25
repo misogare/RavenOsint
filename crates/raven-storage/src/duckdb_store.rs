@@ -18,8 +18,8 @@ use uuid::Uuid;
 
 use crate::{
     model::{
-        discovery_to_rows, result_to_rows, rows_to_discovery, rows_to_result,
-        AgentRow, DiscoveredUrlRow, DiscoveryJobRow, JobRow, ResultRow,
+        discovery_to_rows, result_to_rows, rows_to_discovery, rows_to_result, AgentRow,
+        DiscoveredUrlRow, DiscoveryJobRow, JobRow, ResultRow,
     },
     store::{ListParams, ResultStore},
 };
@@ -46,9 +46,7 @@ impl DuckDbStore {
     ///   - a bare file path like `"raven.duckdb"`
     pub fn connect(url: &str) -> Result<Self, OsintError> {
         // Strip the duckdb:// scheme if present.
-        let path = url
-            .strip_prefix("duckdb://")
-            .unwrap_or(url);
+        let path = url.strip_prefix("duckdb://").unwrap_or(url);
 
         let conn = if path == ":memory:" {
             Connection::open_in_memory()
@@ -144,48 +142,72 @@ impl ResultStore for DuckDbStore {
         let conn = self.conn();
 
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
+            let guard = conn
+                .lock()
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             // Upsert scan_jobs.
-            guard.execute(
-                "INSERT OR REPLACE INTO scan_jobs
+            guard
+                .execute(
+                    "INSERT OR REPLACE INTO scan_jobs
                  (id, url, tags, metadata, submitted_at, completed_at, status)
                  VALUES (?, ?, ?, ?, ?, ?, ?)",
-                params![
-                    job.id, job.url, job.tags, job.metadata,
-                    job.submitted_at, job.completed_at, job.status
-                ],
-            ).map_err(|e| OsintError::Database(e.to_string()))?;
+                    params![
+                        job.id,
+                        job.url,
+                        job.tags,
+                        job.metadata,
+                        job.submitted_at,
+                        job.completed_at,
+                        job.status
+                    ],
+                )
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             // Upsert validation_results.
-            guard.execute(
-                "INSERT OR REPLACE INTO validation_results
+            guard
+                .execute(
+                    "INSERT OR REPLACE INTO validation_results
                  (job_id, status, confidence, llm_status, llm_confidence,
                   llm_reasoning, scraper_output, completed_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                params![
-                    res.job_id, res.status, res.confidence,
-                    res.llm_status, res.llm_confidence, res.llm_reasoning,
-                    res.scraper_output, res.completed_at
-                ],
-            ).map_err(|e| OsintError::Database(e.to_string()))?;
+                    params![
+                        res.job_id,
+                        res.status,
+                        res.confidence,
+                        res.llm_status,
+                        res.llm_confidence,
+                        res.llm_reasoning,
+                        res.scraper_output,
+                        res.completed_at
+                    ],
+                )
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             // Delete + re-insert agent reports.
-            guard.execute(
-                "DELETE FROM agent_reports WHERE job_id = ?",
-                params![res.job_id],
-            ).map_err(|e| OsintError::Database(e.to_string()))?;
+            guard
+                .execute(
+                    "DELETE FROM agent_reports WHERE job_id = ?",
+                    params![res.job_id],
+                )
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             for agent in &agents {
-                guard.execute(
-                    "INSERT INTO agent_reports
+                guard
+                    .execute(
+                        "INSERT INTO agent_reports
                      (id, job_id, agent_name, passed, confidence_delta, details)
                      VALUES (?, ?, ?, ?, ?, ?)",
-                    params![
-                        agent.id, agent.job_id, agent.agent_name,
-                        agent.passed != 0, agent.confidence_delta, agent.details
-                    ],
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
+                        params![
+                            agent.id,
+                            agent.job_id,
+                            agent.agent_name,
+                            agent.passed != 0,
+                            agent.confidence_delta,
+                            agent.details
+                        ],
+                    )
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
             }
 
             Ok::<_, OsintError>(())
@@ -199,77 +221,135 @@ impl ResultStore for DuckDbStore {
         let conn = self.conn();
 
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
+            let guard = conn
+                .lock()
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             let job: JobRow = {
-                let mut stmt = guard.prepare(
-                    "SELECT id, url, tags, metadata, submitted_at, completed_at, status
+                let mut stmt = guard
+                    .prepare(
+                        "SELECT id, url, tags, metadata, submitted_at, completed_at, status
                      FROM scan_jobs WHERE id = ?",
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
-
-                let mut rows = stmt.query(params![id_str])
+                    )
                     .map_err(|e| OsintError::Database(e.to_string()))?;
 
-                let row = rows.next()
+                let mut rows = stmt
+                    .query(params![id_str])
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
+
+                let row = rows
+                    .next()
                     .map_err(|e| OsintError::Database(e.to_string()))?
                     .ok_or_else(|| OsintError::NotFound(id_str.clone()))?;
 
                 JobRow {
-                    id:           row.get(0).map_err(|e| OsintError::Database(e.to_string()))?,
-                    url:          row.get(1).map_err(|e| OsintError::Database(e.to_string()))?,
-                    tags:         row.get(2).map_err(|e| OsintError::Database(e.to_string()))?,
-                    metadata:     row.get(3).map_err(|e| OsintError::Database(e.to_string()))?,
-                    submitted_at: row.get(4).map_err(|e| OsintError::Database(e.to_string()))?,
-                    completed_at: row.get(5).map_err(|e| OsintError::Database(e.to_string()))?,
-                    status:       row.get(6).map_err(|e| OsintError::Database(e.to_string()))?,
+                    id: row
+                        .get(0)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    url: row
+                        .get(1)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    tags: row
+                        .get(2)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    metadata: row
+                        .get(3)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    submitted_at: row
+                        .get(4)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    completed_at: row
+                        .get(5)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    status: row
+                        .get(6)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
                 }
             };
 
             let result: ResultRow = {
-                let mut stmt = guard.prepare(
-                    "SELECT job_id, status, confidence, llm_status, llm_confidence,
+                let mut stmt = guard
+                    .prepare(
+                        "SELECT job_id, status, confidence, llm_status, llm_confidence,
                             llm_reasoning, scraper_output, completed_at
                      FROM validation_results WHERE job_id = ?",
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
-
-                let mut rows = stmt.query(params![id_str])
+                    )
                     .map_err(|e| OsintError::Database(e.to_string()))?;
 
-                let row = rows.next()
+                let mut rows = stmt
+                    .query(params![id_str])
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
+
+                let row = rows
+                    .next()
                     .map_err(|e| OsintError::Database(e.to_string()))?
                     .ok_or_else(|| OsintError::NotFound(id_str.clone()))?;
 
                 ResultRow {
-                    job_id:         row.get(0).map_err(|e| OsintError::Database(e.to_string()))?,
-                    status:         row.get(1).map_err(|e| OsintError::Database(e.to_string()))?,
-                    confidence:     row.get(2).map_err(|e| OsintError::Database(e.to_string()))?,
-                    llm_status:     row.get(3).map_err(|e| OsintError::Database(e.to_string()))?,
-                    llm_confidence: row.get(4).map_err(|e| OsintError::Database(e.to_string()))?,
-                    llm_reasoning:  row.get(5).map_err(|e| OsintError::Database(e.to_string()))?,
-                    scraper_output: row.get(6).map_err(|e| OsintError::Database(e.to_string()))?,
-                    completed_at:   row.get(7).map_err(|e| OsintError::Database(e.to_string()))?,
+                    job_id: row
+                        .get(0)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    status: row
+                        .get(1)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    confidence: row
+                        .get(2)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    llm_status: row
+                        .get(3)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    llm_confidence: row
+                        .get(4)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    llm_reasoning: row
+                        .get(5)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    scraper_output: row
+                        .get(6)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    completed_at: row
+                        .get(7)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
                 }
             };
 
             let agent_rows: Vec<AgentRow> = {
-                let mut stmt = guard.prepare(
-                    "SELECT id, job_id, agent_name, passed, confidence_delta, details
+                let mut stmt = guard
+                    .prepare(
+                        "SELECT id, job_id, agent_name, passed, confidence_delta, details
                      FROM agent_reports WHERE job_id = ?",
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
+                    )
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
 
-                let mut rows = stmt.query(params![id_str])
+                let mut rows = stmt
+                    .query(params![id_str])
                     .map_err(|e| OsintError::Database(e.to_string()))?;
 
                 let mut agents = Vec::new();
-                while let Some(row) = rows.next().map_err(|e| OsintError::Database(e.to_string()))? {
-                    let passed: bool = row.get(3).map_err(|e| OsintError::Database(e.to_string()))?;
+                while let Some(row) = rows
+                    .next()
+                    .map_err(|e| OsintError::Database(e.to_string()))?
+                {
+                    let passed: bool = row
+                        .get(3)
+                        .map_err(|e| OsintError::Database(e.to_string()))?;
                     agents.push(AgentRow {
-                        id:               row.get(0).map_err(|e| OsintError::Database(e.to_string()))?,
-                        job_id:           row.get(1).map_err(|e| OsintError::Database(e.to_string()))?,
-                        agent_name:       row.get(2).map_err(|e| OsintError::Database(e.to_string()))?,
-                        passed:           if passed { 1 } else { 0 },
-                        confidence_delta: row.get(4).map_err(|e| OsintError::Database(e.to_string()))?,
-                        details:          row.get(5).map_err(|e| OsintError::Database(e.to_string()))?,
+                        id: row
+                            .get(0)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                        job_id: row
+                            .get(1)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                        agent_name: row
+                            .get(2)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                        passed: if passed { 1 } else { 0 },
+                        confidence_delta: row
+                            .get(4)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                        details: row
+                            .get(5)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
                     });
                 }
                 agents
@@ -283,21 +363,30 @@ impl ResultStore for DuckDbStore {
 
     async fn list(&self, params: ListParams) -> Result<Vec<ValidationResult>, OsintError> {
         let conn = self.conn();
-        let limit  = params.limit;
+        let limit = params.limit;
         let offset = params.offset;
 
         let ids: Vec<String> = tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
-            let mut stmt = guard.prepare(
-                "SELECT id FROM scan_jobs ORDER BY submitted_at DESC LIMIT ? OFFSET ?",
-            ).map_err(|e| OsintError::Database(e.to_string()))?;
+            let guard = conn
+                .lock()
+                .map_err(|e| OsintError::Database(e.to_string()))?;
+            let mut stmt = guard
+                .prepare("SELECT id FROM scan_jobs ORDER BY submitted_at DESC LIMIT ? OFFSET ?")
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
-            let mut rows = stmt.query(params![limit, offset])
+            let mut rows = stmt
+                .query(params![limit, offset])
                 .map_err(|e| OsintError::Database(e.to_string()))?;
 
             let mut ids = Vec::new();
-            while let Some(row) = rows.next().map_err(|e| OsintError::Database(e.to_string()))? {
-                ids.push(row.get::<_, String>(0).map_err(|e| OsintError::Database(e.to_string()))?);
+            while let Some(row) = rows
+                .next()
+                .map_err(|e| OsintError::Database(e.to_string()))?
+            {
+                ids.push(
+                    row.get::<_, String>(0)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                );
             }
             Ok::<_, OsintError>(ids)
         })
@@ -306,8 +395,8 @@ impl ResultStore for DuckDbStore {
 
         let mut results = Vec::with_capacity(ids.len());
         for id_str in ids {
-            let id = Uuid::parse_str(&id_str)
-                .map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
+            let id =
+                Uuid::parse_str(&id_str).map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
             results.push(self.find_by_id(id).await?);
         }
         Ok(results)
@@ -318,12 +407,26 @@ impl ResultStore for DuckDbStore {
         let conn = self.conn();
 
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
-            guard.execute("DELETE FROM agent_reports      WHERE job_id = ?", params![id_str])
+            let guard = conn
+                .lock()
                 .map_err(|e| OsintError::Database(e.to_string()))?;
-            guard.execute("DELETE FROM validation_results WHERE job_id = ?", params![id_str])
+            guard
+                .execute(
+                    "DELETE FROM agent_reports      WHERE job_id = ?",
+                    params![id_str],
+                )
                 .map_err(|e| OsintError::Database(e.to_string()))?;
-            guard.execute("DELETE FROM scan_jobs          WHERE id      = ?", params![id_str])
+            guard
+                .execute(
+                    "DELETE FROM validation_results WHERE job_id = ?",
+                    params![id_str],
+                )
+                .map_err(|e| OsintError::Database(e.to_string()))?;
+            guard
+                .execute(
+                    "DELETE FROM scan_jobs          WHERE id      = ?",
+                    params![id_str],
+                )
                 .map_err(|e| OsintError::Database(e.to_string()))?;
             Ok::<_, OsintError>(())
         })
@@ -334,15 +437,21 @@ impl ResultStore for DuckDbStore {
     async fn count(&self) -> Result<i64, OsintError> {
         let conn = self.conn();
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
-            let mut stmt = guard.prepare("SELECT COUNT(*) FROM scan_jobs")
+            let guard = conn
+                .lock()
                 .map_err(|e| OsintError::Database(e.to_string()))?;
-            let mut rows = stmt.query([])
+            let mut stmt = guard
+                .prepare("SELECT COUNT(*) FROM scan_jobs")
                 .map_err(|e| OsintError::Database(e.to_string()))?;
-            let row = rows.next()
+            let mut rows = stmt
+                .query([])
+                .map_err(|e| OsintError::Database(e.to_string()))?;
+            let row = rows
+                .next()
                 .map_err(|e| OsintError::Database(e.to_string()))?
                 .ok_or_else(|| OsintError::Database("count returned no rows".into()))?;
-            row.get::<_, i64>(0).map_err(|e| OsintError::Database(e.to_string()))
+            row.get::<_, i64>(0)
+                .map_err(|e| OsintError::Database(e.to_string()))
         })
         .await
         .map_err(|e| OsintError::Database(format!("spawn_blocking: {e}")))?
@@ -353,25 +462,38 @@ impl ResultStore for DuckDbStore {
         let conn = self.conn();
 
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
+            let guard = conn
+                .lock()
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
-            guard.execute(
-                "INSERT OR REPLACE INTO discovery_jobs
+            guard
+                .execute(
+                    "INSERT OR REPLACE INTO discovery_jobs
                  (job_id, request_json, total_discovered, completed_at)
                  VALUES (?, ?, ?, ?)",
-                params![job.job_id, job.request_json, job.total_discovered, job.completed_at],
-            ).map_err(|e| OsintError::Database(e.to_string()))?;
+                    params![
+                        job.job_id,
+                        job.request_json,
+                        job.total_discovered,
+                        job.completed_at
+                    ],
+                )
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
-            guard.execute(
-                "DELETE FROM discovered_urls WHERE job_id = ?",
-                params![job.job_id],
-            ).map_err(|e| OsintError::Database(e.to_string()))?;
+            guard
+                .execute(
+                    "DELETE FROM discovered_urls WHERE job_id = ?",
+                    params![job.job_id],
+                )
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             for url in &urls {
-                guard.execute(
-                    "INSERT INTO discovered_urls (id, job_id, payload) VALUES (?, ?, ?)",
-                    params![url.id, url.job_id, url.payload],
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
+                guard
+                    .execute(
+                        "INSERT INTO discovered_urls (id, job_id, payload) VALUES (?, ?, ?)",
+                        params![url.id, url.job_id, url.payload],
+                    )
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
             }
 
             Ok::<_, OsintError>(())
@@ -385,43 +507,67 @@ impl ResultStore for DuckDbStore {
         let conn = self.conn();
 
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
+            let guard = conn
+                .lock()
+                .map_err(|e| OsintError::Database(e.to_string()))?;
 
             let job: DiscoveryJobRow = {
-                let mut stmt = guard.prepare(
-                    "SELECT job_id, request_json, total_discovered, completed_at
+                let mut stmt = guard
+                    .prepare(
+                        "SELECT job_id, request_json, total_discovered, completed_at
                      FROM discovery_jobs WHERE job_id = ?",
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
-
-                let mut rows = stmt.query(params![id_str])
+                    )
                     .map_err(|e| OsintError::Database(e.to_string()))?;
 
-                let row = rows.next()
+                let mut rows = stmt
+                    .query(params![id_str])
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
+
+                let row = rows
+                    .next()
                     .map_err(|e| OsintError::Database(e.to_string()))?
                     .ok_or_else(|| OsintError::NotFound(id_str.clone()))?;
 
                 DiscoveryJobRow {
-                    job_id:           row.get(0).map_err(|e| OsintError::Database(e.to_string()))?,
-                    request_json:     row.get(1).map_err(|e| OsintError::Database(e.to_string()))?,
-                    total_discovered: row.get(2).map_err(|e| OsintError::Database(e.to_string()))?,
-                    completed_at:     row.get(3).map_err(|e| OsintError::Database(e.to_string()))?,
+                    job_id: row
+                        .get(0)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    request_json: row
+                        .get(1)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    total_discovered: row
+                        .get(2)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
+                    completed_at: row
+                        .get(3)
+                        .map_err(|e| OsintError::Database(e.to_string()))?,
                 }
             };
 
             let url_rows: Vec<DiscoveredUrlRow> = {
-                let mut stmt = guard.prepare(
-                    "SELECT id, job_id, payload FROM discovered_urls WHERE job_id = ?",
-                ).map_err(|e| OsintError::Database(e.to_string()))?;
+                let mut stmt = guard
+                    .prepare("SELECT id, job_id, payload FROM discovered_urls WHERE job_id = ?")
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
 
-                let mut rows = stmt.query(params![id_str])
+                let mut rows = stmt
+                    .query(params![id_str])
                     .map_err(|e| OsintError::Database(e.to_string()))?;
 
                 let mut items = Vec::new();
-                while let Some(row) = rows.next().map_err(|e| OsintError::Database(e.to_string()))? {
+                while let Some(row) = rows
+                    .next()
+                    .map_err(|e| OsintError::Database(e.to_string()))?
+                {
                     items.push(DiscoveredUrlRow {
-                        id:      row.get(0).map_err(|e| OsintError::Database(e.to_string()))?,
-                        job_id:  row.get(1).map_err(|e| OsintError::Database(e.to_string()))?,
-                        payload: row.get(2).map_err(|e| OsintError::Database(e.to_string()))?,
+                        id: row
+                            .get(0)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                        job_id: row
+                            .get(1)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                        payload: row
+                            .get(2)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
                     });
                 }
                 items
@@ -433,33 +579,46 @@ impl ResultStore for DuckDbStore {
         .map_err(|e| OsintError::Database(format!("spawn_blocking: {e}")))?
     }
 
-    async fn list_discoveries(&self, params: ListParams) -> Result<Vec<DiscoveryResult>, OsintError> {
+    async fn list_discoveries(
+        &self,
+        params: ListParams,
+    ) -> Result<Vec<DiscoveryResult>, OsintError> {
         let conn = self.conn();
-        let limit  = params.limit;
+        let limit = params.limit;
         let offset = params.offset;
 
-        let ids: Vec<String> = tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
-            let mut stmt = guard.prepare(
+        let ids: Vec<String> =
+            tokio::task::spawn_blocking(move || {
+                let guard = conn
+                    .lock()
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
+                let mut stmt = guard.prepare(
                 "SELECT job_id FROM discovery_jobs ORDER BY completed_at DESC LIMIT ? OFFSET ?",
             ).map_err(|e| OsintError::Database(e.to_string()))?;
 
-            let mut rows = stmt.query(params![limit, offset])
-                .map_err(|e| OsintError::Database(e.to_string()))?;
+                let mut rows = stmt
+                    .query(params![limit, offset])
+                    .map_err(|e| OsintError::Database(e.to_string()))?;
 
-            let mut ids = Vec::new();
-            while let Some(row) = rows.next().map_err(|e| OsintError::Database(e.to_string()))? {
-                ids.push(row.get::<_, String>(0).map_err(|e| OsintError::Database(e.to_string()))?);
-            }
-            Ok::<_, OsintError>(ids)
-        })
-        .await
-        .map_err(|e| OsintError::Database(format!("spawn_blocking: {e}")))??;
+                let mut ids = Vec::new();
+                while let Some(row) = rows
+                    .next()
+                    .map_err(|e| OsintError::Database(e.to_string()))?
+                {
+                    ids.push(
+                        row.get::<_, String>(0)
+                            .map_err(|e| OsintError::Database(e.to_string()))?,
+                    );
+                }
+                Ok::<_, OsintError>(ids)
+            })
+            .await
+            .map_err(|e| OsintError::Database(format!("spawn_blocking: {e}")))??;
 
         let mut results = Vec::with_capacity(ids.len());
         for id_str in ids {
-            let id = Uuid::parse_str(&id_str)
-                .map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
+            let id =
+                Uuid::parse_str(&id_str).map_err(|e| OsintError::Database(format!("uuid: {e}")))?;
             results.push(self.find_discovery_by_id(id).await?);
         }
         Ok(results)
@@ -468,15 +627,21 @@ impl ResultStore for DuckDbStore {
     async fn discovery_count(&self) -> Result<i64, OsintError> {
         let conn = self.conn();
         tokio::task::spawn_blocking(move || {
-            let guard = conn.lock().map_err(|e| OsintError::Database(e.to_string()))?;
-            let mut stmt = guard.prepare("SELECT COUNT(*) FROM discovery_jobs")
+            let guard = conn
+                .lock()
                 .map_err(|e| OsintError::Database(e.to_string()))?;
-            let mut rows = stmt.query([])
+            let mut stmt = guard
+                .prepare("SELECT COUNT(*) FROM discovery_jobs")
                 .map_err(|e| OsintError::Database(e.to_string()))?;
-            let row = rows.next()
+            let mut rows = stmt
+                .query([])
+                .map_err(|e| OsintError::Database(e.to_string()))?;
+            let row = rows
+                .next()
                 .map_err(|e| OsintError::Database(e.to_string()))?
                 .ok_or_else(|| OsintError::Database("count returned no rows".into()))?;
-            row.get::<_, i64>(0).map_err(|e| OsintError::Database(e.to_string()))
+            row.get::<_, i64>(0)
+                .map_err(|e| OsintError::Database(e.to_string()))
         })
         .await
         .map_err(|e| OsintError::Database(format!("spawn_blocking: {e}")))?

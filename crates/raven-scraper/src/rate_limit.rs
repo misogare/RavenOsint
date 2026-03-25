@@ -10,7 +10,7 @@ use tracing::debug;
 /// Wraps a keyed (per-domain) governor rate limiter.
 pub struct DomainRateLimiter {
     limiter: DefaultKeyedRateLimiter<String>,
-    clock:   QuantaClock,
+    clock: QuantaClock,
 }
 
 impl DomainRateLimiter {
@@ -20,7 +20,7 @@ impl DomainRateLimiter {
         let quota = Quota::per_minute(n);
         Self {
             limiter: RateLimiter::keyed(quota),
-            clock:   QuantaClock::default(),
+            clock: QuantaClock::default(),
         }
     }
 

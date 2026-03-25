@@ -14,20 +14,20 @@ impl AgentPlugin for AvailabilityAgent {
 
     async fn run(&self, input: &ScraperOutput) -> Result<AgentReport, OsintError> {
         let status = input.status_code;
-        let ok     = (200..=299).contains(&status);
+        let ok = (200..=299).contains(&status);
 
         // Redirect sanity: flag if the final URL domain differs significantly
         // from the original (could signal a suspicious redirect).
         let suspicious_redirect = {
             let original_host = extract_host(&input.url);
-            let final_host    = extract_host(&input.final_url);
+            let final_host = extract_host(&input.final_url);
             original_host != final_host
         };
 
         let latency_grade = match input.latency_ms {
-            0..=500    => "fast",
+            0..=500 => "fast",
             501..=2000 => "normal",
-            _          => "slow",
+            _ => "slow",
         };
 
         let delta = if ok && !suspicious_redirect {
@@ -42,11 +42,11 @@ impl AgentPlugin for AvailabilityAgent {
         let report = AgentReport::new("availability")
             .passed(ok)
             .delta(delta)
-            .detail("status_code",          status.to_string())
-            .detail("final_url",            input.final_url.clone())
-            .detail("latency_ms",           input.latency_ms.to_string())
-            .detail("latency_grade",        latency_grade.to_string())
-            .detail("suspicious_redirect",  suspicious_redirect.to_string());
+            .detail("status_code", status.to_string())
+            .detail("final_url", input.final_url.clone())
+            .detail("latency_ms", input.latency_ms.to_string())
+            .detail("latency_grade", latency_grade.to_string())
+            .detail("suspicious_redirect", suspicious_redirect.to_string());
 
         Ok(report)
     }
@@ -69,17 +69,17 @@ mod tests {
 
     fn make_output(status: u16, url: &str, final_url: &str) -> ScraperOutput {
         ScraperOutput {
-            job_id:          Uuid::new_v4(),
-            url:             url.into(),
-            final_url:       final_url.into(),
-            status_code:     status,
-            headers:         HashMap::new(),
-            body_text:       String::new(),
-            ssl_valid:       None,
+            job_id: Uuid::new_v4(),
+            url: url.into(),
+            final_url: final_url.into(),
+            status_code: status,
+            headers: HashMap::new(),
+            body_text: String::new(),
+            ssl_valid: None,
             ssl_expiry_days: None,
-            ssl_issuer:      None,
-            latency_ms:      120,
-            scraped_at:      Utc::now(),
+            ssl_issuer: None,
+            latency_ms: 120,
+            scraped_at: Utc::now(),
         }
     }
 
@@ -103,6 +103,9 @@ mod tests {
     async fn detects_suspicious_redirect() {
         let out = make_output(200, "https://legit.com", "https://evil.com/page");
         let r = AvailabilityAgent.run(&out).await.unwrap();
-        assert_eq!(r.details.get("suspicious_redirect").map(String::as_str), Some("true"));
+        assert_eq!(
+            r.details.get("suspicious_redirect").map(String::as_str),
+            Some("true")
+        );
     }
 }

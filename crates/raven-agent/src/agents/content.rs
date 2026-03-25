@@ -80,18 +80,28 @@ impl AgentPlugin for ContentAnalyzerAgent {
         let missing_count = missing_headers.len();
 
         // ── JS redirect (window.location in body text) ────────────────────────
-        let js_redirect = body_lower.contains("window.location") || body_lower.contains("meta http-equiv=\"refresh\"");
+        let js_redirect = body_lower.contains("window.location")
+            || body_lower.contains("meta http-equiv=\"refresh\"");
 
         // ── Very thin content (possible doorway / parked page) ────────────────
         let thin_content = input.body_text.split_whitespace().count() < 50;
 
         // ── Scoring ───────────────────────────────────────────────────────────
         let mut delta: f32 = 0.0;
-        if phishing_count >= 3   { delta -= 0.40; }
-        else if phishing_count >= 1 { delta -= 0.15 * phishing_count as f32; }
-        if js_suspicious         { delta -= 0.25; }
-        if js_redirect           { delta -= 0.10; }
-        if thin_content          { delta -= 0.05; }
+        if phishing_count >= 3 {
+            delta -= 0.40;
+        } else if phishing_count >= 1 {
+            delta -= 0.15 * phishing_count as f32;
+        }
+        if js_suspicious {
+            delta -= 0.25;
+        }
+        if js_redirect {
+            delta -= 0.10;
+        }
+        if thin_content {
+            delta -= 0.05;
+        }
         // Missing security headers are a weak signal — partial penalty.
         delta -= 0.03 * missing_count as f32;
 
@@ -106,11 +116,11 @@ impl AgentPlugin for ContentAnalyzerAgent {
             .passed(passed)
             .delta(delta.clamp(-1.0, 1.0))
             .detail("phishing_keywords_found", phishing_count.to_string())
-            .detail("phishing_keywords",       phishing_hits.join(", "))
-            .detail("suspicious_js",           js_suspicious.to_string())
-            .detail("js_patterns_found",       js_hits.join(", "))
-            .detail("js_redirect",             js_redirect.to_string())
-            .detail("thin_content",            thin_content.to_string())
+            .detail("phishing_keywords", phishing_hits.join(", "))
+            .detail("suspicious_js", js_suspicious.to_string())
+            .detail("js_patterns_found", js_hits.join(", "))
+            .detail("js_redirect", js_redirect.to_string())
+            .detail("thin_content", thin_content.to_string())
             .detail("missing_security_headers", missing_headers.join(", "));
 
         Ok(report)
@@ -128,17 +138,17 @@ mod tests {
 
     fn make_output(body: &str) -> ScraperOutput {
         ScraperOutput {
-            job_id:          Uuid::new_v4(),
-            url:             "https://example.com".into(),
-            final_url:       "https://example.com".into(),
-            status_code:     200,
-            headers:         HashMap::new(),
-            body_text:       body.into(),
-            ssl_valid:       Some(true),
+            job_id: Uuid::new_v4(),
+            url: "https://example.com".into(),
+            final_url: "https://example.com".into(),
+            status_code: 200,
+            headers: HashMap::new(),
+            body_text: body.into(),
+            ssl_valid: Some(true),
             ssl_expiry_days: None,
-            ssl_issuer:      None,
-            latency_ms:      100,
-            scraped_at:      Utc::now(),
+            ssl_issuer: None,
+            latency_ms: 100,
+            scraped_at: Utc::now(),
         }
     }
 

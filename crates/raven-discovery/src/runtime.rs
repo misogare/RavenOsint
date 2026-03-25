@@ -2,24 +2,26 @@
 
 use raven_bus::RavenBus;
 use raven_core::{
-    config::DiscoveryConfig, BusEvent, DiscoveryPlugin, DiscoveryProviderKind,
-    DiscoveryRequest, DiscoveryResult, OsintError,
+    config::DiscoveryConfig, BusEvent, DiscoveryPlugin, DiscoveryProviderKind, DiscoveryRequest,
+    DiscoveryResult, OsintError,
 };
 use std::{collections::HashMap, sync::Arc};
 
 use crate::providers::{
-    CensysProvider, ExaSearchProvider, SeedListProvider,
-    SerperSearchProvider, VirusTotalProvider,
+    CensysProvider, ExaSearchProvider, SeedListProvider, SerperSearchProvider, VirusTotalProvider,
 };
 
 pub struct DiscoveryRuntime {
-    bus:     RavenBus,
+    bus: RavenBus,
     plugins: HashMap<DiscoveryProviderKind, Arc<dyn DiscoveryPlugin>>,
 }
 
 impl DiscoveryRuntime {
     pub fn new() -> Self {
-        Self { bus: RavenBus::new(), plugins: HashMap::new() }
+        Self {
+            bus: RavenBus::new(),
+            plugins: HashMap::new(),
+        }
     }
 
     /// Build a runtime from config.
@@ -28,19 +30,19 @@ impl DiscoveryRuntime {
     /// The `enabled` flag in config is a secondary gate — having a key is enough.
     /// This means setting the env var is sufficient without also flipping enabled=true.
     pub fn from_config(config: &DiscoveryConfig) -> Result<Self, OsintError> {
-        let mut runtime = Self::new()
-            .with_plugin(DiscoveryProviderKind::SeedFile, Arc::new(SeedListProvider));
+        let mut runtime =
+            Self::new().with_plugin(DiscoveryProviderKind::SeedFile, Arc::new(SeedListProvider));
 
         if !config.serper.api_key.is_empty() {
             match SerperSearchProvider::new(config) {
-                Ok(p)  => runtime = runtime.with_plugin(DiscoveryProviderKind::Serper, Arc::new(p)),
+                Ok(p) => runtime = runtime.with_plugin(DiscoveryProviderKind::Serper, Arc::new(p)),
                 Err(e) => tracing::warn!(error = %e, "serper provider failed to initialise"),
             }
         }
 
         if !config.exa.api_key.is_empty() {
             match ExaSearchProvider::new(config) {
-                Ok(p)  => runtime = runtime.with_plugin(DiscoveryProviderKind::Exa, Arc::new(p)),
+                Ok(p) => runtime = runtime.with_plugin(DiscoveryProviderKind::Exa, Arc::new(p)),
                 Err(e) => tracing::warn!(error = %e, "exa provider failed to initialise"),
             }
         }
@@ -48,14 +50,16 @@ impl DiscoveryRuntime {
         // Censys uses a single Bearer PAT — only api_key is needed, api_secret unused
         if !config.censys.api_key.is_empty() {
             match CensysProvider::new(config) {
-                Ok(p)  => runtime = runtime.with_plugin(DiscoveryProviderKind::Censys, Arc::new(p)),
+                Ok(p) => runtime = runtime.with_plugin(DiscoveryProviderKind::Censys, Arc::new(p)),
                 Err(e) => tracing::warn!(error = %e, "censys provider failed to initialise"),
             }
         }
 
         if !config.virus_total.api_key.is_empty() {
             match VirusTotalProvider::new(config) {
-                Ok(p)  => runtime = runtime.with_plugin(DiscoveryProviderKind::VirusTotal, Arc::new(p)),
+                Ok(p) => {
+                    runtime = runtime.with_plugin(DiscoveryProviderKind::VirusTotal, Arc::new(p))
+                }
                 Err(e) => tracing::warn!(error = %e, "virustotal provider failed to initialise"),
             }
         }
@@ -63,7 +67,11 @@ impl DiscoveryRuntime {
         Ok(runtime)
     }
 
-    pub fn with_plugin(mut self, kind: DiscoveryProviderKind, plugin: Arc<dyn DiscoveryPlugin>) -> Self {
+    pub fn with_plugin(
+        mut self,
+        kind: DiscoveryProviderKind,
+        plugin: Arc<dyn DiscoveryPlugin>,
+    ) -> Self {
         self.plugins.insert(kind, plugin);
         self
     }
@@ -73,7 +81,10 @@ impl DiscoveryRuntime {
     }
 
     pub fn registered_providers(&self) -> Vec<String> {
-        self.plugins.values().map(|p| p.name().to_string()).collect()
+        self.plugins
+            .values()
+            .map(|p| p.name().to_string())
+            .collect()
     }
 
     pub async fn execute(&self, request: DiscoveryRequest) -> Result<DiscoveryResult, OsintError> {
@@ -92,13 +103,15 @@ impl DiscoveryRuntime {
         match &result {
             Ok(d) => {
                 let _ = self.bus.publish(BusEvent::DiscoveryUrlsFound {
-                    job_id: d.job_id, urls: d.urls.clone(),
+                    job_id: d.job_id,
+                    urls: d.urls.clone(),
                 });
                 let _ = self.bus.publish(BusEvent::DiscoveryComplete(d.clone()));
             }
             Err(e) => {
                 let _ = self.bus.publish(BusEvent::DiscoveryFailed {
-                    job_id: request.job_id, error: e.to_string(),
+                    job_id: request.job_id,
+                    error: e.to_string(),
                 });
             }
         }
@@ -108,16 +121,18 @@ impl DiscoveryRuntime {
 }
 
 impl Default for DiscoveryRuntime {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn provider_name(kind: &DiscoveryProviderKind) -> &'static str {
     match kind {
-        DiscoveryProviderKind::Serper     => "serper",
-        DiscoveryProviderKind::Exa        => "exa",
-        DiscoveryProviderKind::SeedFile   => "seed_file",
-        DiscoveryProviderKind::Censys     => "censys",
+        DiscoveryProviderKind::Serper => "serper",
+        DiscoveryProviderKind::Exa => "exa",
+        DiscoveryProviderKind::SeedFile => "seed_file",
+        DiscoveryProviderKind::Censys => "censys",
         DiscoveryProviderKind::VirusTotal => "virus_total",
-        DiscoveryProviderKind::Other      => "other",
+        DiscoveryProviderKind::Other => "other",
     }
 }

@@ -3,20 +3,25 @@ use raven_core::{config::LlmConfig, LlmContext, LlmProvider, LlmVerdict, OsintEr
 
 use crate::openai_compatible::OpenAiCompatibleProvider;
 
-pub struct DeepSeekProvider {
+pub struct OpenAiProvider {
     inner: OpenAiCompatibleProvider,
 }
 
-impl DeepSeekProvider {
+impl OpenAiProvider {
     pub fn new(cfg: &LlmConfig) -> Result<Self, OsintError> {
+        let mut adjusted = cfg.clone();
+        if adjusted.base_url.trim().is_empty() {
+            adjusted.base_url = "https://api.openai.com/v1".into();
+        }
+
         Ok(Self {
-            inner: OpenAiCompatibleProvider::new("deepseek", cfg)?,
+            inner: OpenAiCompatibleProvider::new("openai", &adjusted)?,
         })
     }
 }
 
 #[async_trait]
-impl LlmProvider for DeepSeekProvider {
+impl LlmProvider for OpenAiProvider {
     fn name(&self) -> &str {
         self.inner.name()
     }

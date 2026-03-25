@@ -50,11 +50,7 @@ pub async fn list_results(
         offset: query.offset.max(0),
     };
 
-    let total = state
-        .store
-        .count()
-        .await
-        .map_err(internal_error)?;
+    let total = state.store.count().await.map_err(internal_error)?;
     let items = state
         .store
         .list(params.clone())

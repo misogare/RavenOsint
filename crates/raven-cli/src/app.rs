@@ -11,8 +11,7 @@ use uuid::Uuid;
 
 use crate::commands::{
     Cli, Command, ConfigCommand, DiscoverArgs, DiscoveriesCommand, DiscoveriesGetArgs,
-    DiscoveriesListArgs, OutputFormat, ResultsCommand, ResultsGetArgs,
-    ResultsListArgs,
+    DiscoveriesListArgs, OutputFormat, ResultsCommand, ResultsGetArgs, ResultsListArgs,
 };
 
 pub async fn run(cli: Cli) -> Result<()> {
@@ -32,14 +31,14 @@ pub async fn run(cli: Cli) -> Result<()> {
         // Results and discoveries views only need the store — no workflow needed.
         Command::Results(args) => {
             return match &args.command {
-                ResultsCommand::List(a)  => handle_results_list(Arc::clone(&store), a).await,
-                ResultsCommand::Get(a)   => handle_results_get(Arc::clone(&store), a).await,
+                ResultsCommand::List(a) => handle_results_list(Arc::clone(&store), a).await,
+                ResultsCommand::Get(a) => handle_results_get(Arc::clone(&store), a).await,
             };
         }
         Command::Discoveries(args) => {
             return match &args.command {
                 DiscoveriesCommand::List(a) => handle_discoveries_list(Arc::clone(&store), a).await,
-                DiscoveriesCommand::Get(a)  => handle_discoveries_get(Arc::clone(&store), a).await,
+                DiscoveriesCommand::Get(a) => handle_discoveries_get(Arc::clone(&store), a).await,
             };
         }
         Command::Config(args) => {
@@ -54,17 +53,15 @@ pub async fn run(cli: Cli) -> Result<()> {
     }
 
     // Commands that need the full workflow runtime.
-    let workflow = WorkflowRuntime::new(&config, Arc::clone(&store))
-        .map_err(anyhow::Error::msg)?;
+    let workflow = WorkflowRuntime::new(&config, Arc::clone(&store)).map_err(anyhow::Error::msg)?;
 
     match cli.command {
-        Command::Discover(args)      => handle_discover(&workflow, args).await,
-        Command::Scan(args)          => handle_scan(&workflow, args.url, args.tags, args.output).await,
-        Command::Validate(args)      => handle_validate(&workflow, &args.file, args.output).await,
-        Command::Results(_)
-        | Command::Discoveries(_)
-        | Command::Config(_)
-        | Command::Plugin(_) => unreachable!(),
+        Command::Discover(args) => handle_discover(&workflow, args).await,
+        Command::Scan(args) => handle_scan(&workflow, args.url, args.tags, args.output).await,
+        Command::Validate(args) => handle_validate(&workflow, &args.file, args.output).await,
+        Command::Results(_) | Command::Discoveries(_) | Command::Config(_) | Command::Plugin(_) => {
+            unreachable!()
+        }
     }
 }
 
@@ -82,9 +79,12 @@ async fn handle_results_list(
     store: Arc<dyn raven_storage::ResultStore>,
     args: &ResultsListArgs,
 ) -> Result<()> {
-    let params = ListParams { limit: args.limit, offset: args.offset };
-    let total  = store.count().await.map_err(anyhow::Error::msg)?;
-    let items  = store.list(params).await.map_err(anyhow::Error::msg)?;
+    let params = ListParams {
+        limit: args.limit,
+        offset: args.offset,
+    };
+    let total = store.count().await.map_err(anyhow::Error::msg)?;
+    let items = store.list(params).await.map_err(anyhow::Error::msg)?;
 
     // Optional status filter (client-side — avoids adding a filter param to the trait).
     let items: Vec<_> = match &args.status {
@@ -97,12 +97,15 @@ async fn handle_results_list(
 
     match args.output {
         OutputFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "total": total,
-                "showing": items.len(),
-                "offset": args.offset,
-                "items": items,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "total": total,
+                    "showing": items.len(),
+                    "offset": args.offset,
+                    "items": items,
+                }))?
+            );
         }
         OutputFormat::Urls => {
             for item in &items {
@@ -112,7 +115,9 @@ async fn handle_results_list(
         OutputFormat::Table => {
             eprintln!(
                 "Scan results — showing {} of {} total (offset {})",
-                items.len(), total, args.offset
+                items.len(),
+                total,
+                args.offset
             );
 
             if items.is_empty() {
@@ -182,19 +187,53 @@ async fn handle_results_get(
                     Cell::new("Value").add_attribute(Attribute::Bold),
                 ]);
 
-            summary.add_row(vec![Cell::new("Job ID"),    Cell::new(result.job_id.to_string())]);
-            summary.add_row(vec![Cell::new("URL"),       Cell::new(&result.target.url)]);
-            summary.add_row(vec![Cell::new("Status"),    status_colour(&result.status.to_string())]);
-            summary.add_row(vec![Cell::new("Confidence"), Cell::new(format!("{:.1}%", result.confidence * 100.0))]);
-            summary.add_row(vec![Cell::new("Completed"), Cell::new(result.completed_at.format("%Y-%m-%d %H:%M:%S UTC").to_string())]);
+            summary.add_row(vec![
+                Cell::new("Job ID"),
+                Cell::new(result.job_id.to_string()),
+            ]);
+            summary.add_row(vec![Cell::new("URL"), Cell::new(&result.target.url)]);
+            summary.add_row(vec![
+                Cell::new("Status"),
+                status_colour(&result.status.to_string()),
+            ]);
+            summary.add_row(vec![
+                Cell::new("Confidence"),
+                Cell::new(format!("{:.1}%", result.confidence * 100.0)),
+            ]);
+            summary.add_row(vec![
+                Cell::new("Completed"),
+                Cell::new(
+                    result
+                        .completed_at
+                        .format("%Y-%m-%d %H:%M:%S UTC")
+                        .to_string(),
+                ),
+            ]);
 
             if let Some(ref scrape) = result.scraper_output {
-                summary.add_row(vec![Cell::new("Final URL"),   Cell::new(&scrape.final_url)]);
-                summary.add_row(vec![Cell::new("Status Code"), Cell::new(scrape.status_code.to_string())]);
-                summary.add_row(vec![Cell::new("Latency"),     Cell::new(format!("{}ms", scrape.latency_ms))]);
-                summary.add_row(vec![Cell::new("SSL Valid"),   Cell::new(scrape.ssl_valid.map(|v| if v { "✓" } else { "✗" }).unwrap_or("n/a"))]);
+                summary.add_row(vec![Cell::new("Final URL"), Cell::new(&scrape.final_url)]);
+                summary.add_row(vec![
+                    Cell::new("Status Code"),
+                    Cell::new(scrape.status_code.to_string()),
+                ]);
+                summary.add_row(vec![
+                    Cell::new("Latency"),
+                    Cell::new(format!("{}ms", scrape.latency_ms)),
+                ]);
+                summary.add_row(vec![
+                    Cell::new("SSL Valid"),
+                    Cell::new(
+                        scrape
+                            .ssl_valid
+                            .map(|v| if v { "✓" } else { "✗" })
+                            .unwrap_or("n/a"),
+                    ),
+                ]);
                 if let Some(days) = scrape.ssl_expiry_days {
-                    summary.add_row(vec![Cell::new("SSL Expiry"), Cell::new(format!("{days} days"))]);
+                    summary.add_row(vec![
+                        Cell::new("SSL Expiry"),
+                        Cell::new(format!("{days} days")),
+                    ]);
                 }
             }
 
@@ -203,7 +242,9 @@ async fn handle_results_get(
             // ── LLM verdict ──────────────────────────────────────────────────
             eprintln!("\n── LLM Verdict ───────────────────────────────────────────────────────");
             let mut llm_table = Table::new();
-            llm_table.load_preset(UTF8_FULL).set_content_arrangement(ContentArrangement::Dynamic);
+            llm_table
+                .load_preset(UTF8_FULL)
+                .set_content_arrangement(ContentArrangement::Dynamic);
             llm_table.set_header(vec![
                 Cell::new("Status").add_attribute(Attribute::Bold),
                 Cell::new("Confidence").add_attribute(Attribute::Bold),
@@ -218,9 +259,13 @@ async fn handle_results_get(
 
             // ── Agent reports ─────────────────────────────────────────────────
             if !result.agent_reports.is_empty() {
-                eprintln!("\n── Agent Reports ─────────────────────────────────────────────────────");
+                eprintln!(
+                    "\n── Agent Reports ─────────────────────────────────────────────────────"
+                );
                 let mut agent_table = Table::new();
-                agent_table.load_preset(UTF8_FULL).set_content_arrangement(ContentArrangement::Dynamic);
+                agent_table
+                    .load_preset(UTF8_FULL)
+                    .set_content_arrangement(ContentArrangement::Dynamic);
                 agent_table.set_header(vec![
                     Cell::new("Agent").add_attribute(Attribute::Bold),
                     Cell::new("Passed").add_attribute(Attribute::Bold),
@@ -235,13 +280,14 @@ async fn handle_results_get(
                         Cell::new("✗ fail").fg(Color::Red)
                     };
 
-                    let findings: String = report.details
+                    let findings: String = report
+                        .details
                         .iter()
                         .map(|(k, v)| format!("{k}: {v}"))
                         .collect::<Vec<_>>()
                         .join("\n");
 
-                    let delta_str  = format!("{:+.2}", report.confidence_delta);
+                    let delta_str = format!("{:+.2}", report.confidence_delta);
                     let delta_cell = if report.confidence_delta >= 0.0 {
                         Cell::new(delta_str).fg(Color::Green)
                     } else {
@@ -275,18 +321,27 @@ async fn handle_discoveries_list(
     store: Arc<dyn raven_storage::ResultStore>,
     args: &DiscoveriesListArgs,
 ) -> Result<()> {
-    let params = ListParams { limit: args.limit, offset: args.offset };
-    let total  = store.discovery_count().await.map_err(anyhow::Error::msg)?;
-    let items  = store.list_discoveries(params).await.map_err(anyhow::Error::msg)?;
+    let params = ListParams {
+        limit: args.limit,
+        offset: args.offset,
+    };
+    let total = store.discovery_count().await.map_err(anyhow::Error::msg)?;
+    let items = store
+        .list_discoveries(params)
+        .await
+        .map_err(anyhow::Error::msg)?;
 
     match args.output {
         OutputFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "total": total,
-                "showing": items.len(),
-                "offset": args.offset,
-                "items": items,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "total": total,
+                    "showing": items.len(),
+                    "offset": args.offset,
+                    "items": items,
+                }))?
+            );
         }
         OutputFormat::Urls => {
             for item in &items {
@@ -298,11 +353,15 @@ async fn handle_discoveries_list(
         OutputFormat::Table => {
             eprintln!(
                 "Discovery jobs — showing {} of {} total (offset {})",
-                items.len(), total, args.offset
+                items.len(),
+                total,
+                args.offset
             );
 
             if items.is_empty() {
-                eprintln!("(no discovery jobs stored yet — run `raven discover <query>` to get started)");
+                eprintln!(
+                    "(no discovery jobs stored yet — run `raven discover <query>` to get started)"
+                );
                 return Ok(());
             }
 
@@ -344,7 +403,10 @@ async fn handle_discoveries_get(
     let job_id = Uuid::parse_str(&args.job_id)
         .with_context(|| format!("'{}' is not a valid UUID", args.job_id))?;
 
-    let result = store.find_discovery_by_id(job_id).await.map_err(anyhow::Error::msg)?;
+    let result = store
+        .find_discovery_by_id(job_id)
+        .await
+        .map_err(anyhow::Error::msg)?;
 
     match args.output {
         OutputFormat::Json => {
@@ -383,7 +445,9 @@ async fn handle_discoveries_get(
                 ]);
 
             for (i, url) in result.urls.iter().enumerate() {
-                let snippet = url.title.as_deref()
+                let snippet = url
+                    .title
+                    .as_deref()
                     .or(url.snippet.as_deref())
                     .unwrap_or("")
                     .chars()
@@ -401,9 +465,7 @@ async fn handle_discoveries_get(
             }
 
             println!("{table}");
-            eprintln!(
-                "\nTip: export as URLs with `--output urls` and pipe into `raven validate`."
-            );
+            eprintln!("\nTip: export as URLs with `--output urls` and pipe into `raven validate`.");
         }
     }
     Ok(())
@@ -415,13 +477,13 @@ async fn handle_discoveries_get(
 
 async fn handle_discover(workflow: &WorkflowRuntime, args: DiscoverArgs) -> Result<()> {
     let mut request = DiscoveryRequest::new(args.query);
-    request.site              = args.site;
-    request.provider          = args.provider.into();
-    request.limit             = args.limit.clamp(1, 250);
-    request.country           = args.country;
-    request.lang              = args.lang;
+    request.site = args.site;
+    request.provider = args.provider.into();
+    request.limit = args.limit.clamp(1, 250);
+    request.country = args.country;
+    request.lang = args.lang;
     request.include_subdomains = args.include_subdomains;
-    request.validate          = args.validate;
+    request.validate = args.validate;
 
     if request.validate {
         let result = workflow
@@ -430,7 +492,10 @@ async fn handle_discover(workflow: &WorkflowRuntime, args: DiscoverArgs) -> Resu
             .map_err(anyhow::Error::msg)?;
         render_discovery_workflow(args.output, serde_json::to_value(result)?)
     } else {
-        let result = workflow.discover(request).await.map_err(anyhow::Error::msg)?;
+        let result = workflow
+            .discover(request)
+            .await
+            .map_err(anyhow::Error::msg)?;
         render_discovery_result(args.output, serde_json::to_value(result)?)
     }
 }
@@ -448,7 +513,10 @@ async fn handle_scan(
         metadata: HashMap::new(),
         submitted_at: Utc::now(),
     };
-    let result = workflow.validate_target(target).await.map_err(anyhow::Error::msg)?;
+    let result = workflow
+        .validate_target(target)
+        .await
+        .map_err(anyhow::Error::msg)?;
     render_generic(output, serde_json::to_value(result)?)
 }
 
@@ -457,8 +525,8 @@ async fn handle_validate(
     path: &Path,
     output: OutputFormat,
 ) -> Result<()> {
-    let body = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let body =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
 
     let urls: Vec<String> = body
         .lines()
@@ -476,7 +544,12 @@ async fn handle_validate(
             metadata: HashMap::new(),
             submitted_at: Utc::now(),
         };
-        results.push(workflow.validate_target(target).await.map_err(anyhow::Error::msg)?);
+        results.push(
+            workflow
+                .validate_target(target)
+                .await
+                .map_err(anyhow::Error::msg)?,
+        );
     }
 
     render_generic(output, json!(results))
@@ -492,7 +565,7 @@ fn list_plugins() -> Result<()> {
         "discovery_providers": ["seed_file", "serper", "exa", "censys", "virustotal"],
         "scrapers": ["generic_http"],
         "agents": ["availability", "ssl", "content_analyzer"],
-        "llm_providers": ["deepseek"],
+        "llm_providers": ["deepseek", "openai", "kimi", "github_copilot", "gemini", "claude"],
         "storage_backends": ["sqlite", "postgres", "duckdb"]
     });
     println!("{}", serde_json::to_string_pretty(&payload)?);
@@ -505,9 +578,9 @@ fn list_plugins() -> Result<()> {
 
 fn render_discovery_result(output: OutputFormat, payload: serde_json::Value) -> Result<()> {
     match output {
-        OutputFormat::Json  => println!("{}", serde_json::to_string_pretty(&payload)?),
+        OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
         OutputFormat::Table => render_discovery_table(&payload),
-        OutputFormat::Urls  => render_url_lines(&payload, "urls"),
+        OutputFormat::Urls => render_url_lines(&payload, "urls"),
     }
     Ok(())
 }
@@ -517,20 +590,23 @@ fn render_discovery_workflow(output: OutputFormat, payload: serde_json::Value) -
         OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&payload)?),
         OutputFormat::Table => {
             if let Some(d) = payload.get("discovery") {
-                eprintln!("── Discovery ──────────────────────────────────────────────────────────");
+                eprintln!(
+                    "── Discovery ──────────────────────────────────────────────────────────"
+                );
                 render_discovery_table(d);
             }
             if let Some(vs) = payload.get("validations").and_then(|v| v.as_array()) {
                 if !vs.is_empty() {
-                    eprintln!("\n── Validation ─────────────────────────────────────────────────────────");
+                    eprintln!(
+                        "\n── Validation ─────────────────────────────────────────────────────────"
+                    );
                     render_validation_summary_table(vs);
                 }
             }
         }
-        OutputFormat::Urls => render_url_lines(
-            payload.get("discovery").unwrap_or(&payload),
-            "urls",
-        ),
+        OutputFormat::Urls => {
+            render_url_lines(payload.get("discovery").unwrap_or(&payload), "urls")
+        }
     }
     Ok(())
 }
@@ -551,7 +627,8 @@ fn render_generic(output: OutputFormat, payload: serde_json::Value) -> Result<()
         }
         OutputFormat::Table => {
             let mut table = Table::new();
-            table.load_preset(UTF8_FULL)
+            table
+                .load_preset(UTF8_FULL)
                 .set_content_arrangement(ContentArrangement::Dynamic)
                 .set_header(vec![
                     Cell::new("Field").add_attribute(Attribute::Bold),
@@ -575,15 +652,29 @@ fn render_generic(output: OutputFormat, payload: serde_json::Value) -> Result<()
 
 fn render_discovery_table(payload: &serde_json::Value) {
     let empty = vec![];
-    let urls  = payload.get("urls").and_then(|v| v.as_array()).unwrap_or(&empty);
-    let job   = payload.get("job_id").and_then(|v| v.as_str()).unwrap_or("?");
-    let total = payload.get("total_discovered").and_then(|v| v.as_u64()).unwrap_or(urls.len() as u64);
+    let urls = payload
+        .get("urls")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty);
+    let job = payload
+        .get("job_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+    let total = payload
+        .get("total_discovered")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(urls.len() as u64);
 
     eprintln!("Job: {job}  |  Discovered: {total}");
-    if urls.is_empty() { eprintln!("(no URLs discovered)"); return; }
+    if urls.is_empty() {
+        eprintln!("(no URLs discovered)");
+        return;
+    }
 
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL).set_content_arrangement(ContentArrangement::Dynamic)
+    table
+        .load_preset(UTF8_FULL)
+        .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec![
             Cell::new("#").add_attribute(Attribute::Bold),
             Cell::new("URL").add_attribute(Attribute::Bold),
@@ -594,18 +685,33 @@ fn render_discovery_table(payload: &serde_json::Value) {
         ]);
 
     for (i, url) in urls.iter().enumerate() {
-        let rank = url.get("rank").and_then(|v| v.as_u64())
-            .map(|r| r.to_string()).unwrap_or_else(|| (i + 1).to_string());
-        let confidence = url.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let rank = url
+            .get("rank")
+            .and_then(|v| v.as_u64())
+            .map(|r| r.to_string())
+            .unwrap_or_else(|| (i + 1).to_string());
+        let confidence = url
+            .get("confidence")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
 
         table.add_row(vec![
             Cell::new(rank),
-            Cell::new(truncate_url(url.get("url").and_then(|v| v.as_str()).unwrap_or("-"), 55)),
+            Cell::new(truncate_url(
+                url.get("url").and_then(|v| v.as_str()).unwrap_or("-"),
+                55,
+            )),
             Cell::new(url.get("domain").and_then(|v| v.as_str()).unwrap_or("-")),
             Cell::new(url.get("provider").and_then(|v| v.as_str()).unwrap_or("-")),
             Cell::new(format!("{:.0}%", confidence * 100.0)),
-            Cell::new(url.get("title").and_then(|v| v.as_str()).unwrap_or("")
-                .chars().take(40).collect::<String>()),
+            Cell::new(
+                url.get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .chars()
+                    .take(40)
+                    .collect::<String>(),
+            ),
         ]);
     }
     println!("{table}");
@@ -613,7 +719,9 @@ fn render_discovery_table(payload: &serde_json::Value) {
 
 fn render_validation_summary_table(validations: &[serde_json::Value]) {
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL).set_content_arrangement(ContentArrangement::Dynamic)
+    table
+        .load_preset(UTF8_FULL)
+        .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec![
             Cell::new("URL").add_attribute(Attribute::Bold),
             Cell::new("Status").add_attribute(Attribute::Bold),
@@ -621,9 +729,15 @@ fn render_validation_summary_table(validations: &[serde_json::Value]) {
         ]);
 
     for v in validations {
-        let url    = v.pointer("/target/url").and_then(|u| u.as_str()).unwrap_or("-");
-        let status = v.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
-        let conf   = v.get("confidence").and_then(|c| c.as_f64()).unwrap_or(0.0);
+        let url = v
+            .pointer("/target/url")
+            .and_then(|u| u.as_str())
+            .unwrap_or("-");
+        let status = v
+            .get("status")
+            .and_then(|s| s.as_str())
+            .unwrap_or("unknown");
+        let conf = v.get("confidence").and_then(|c| c.as_f64()).unwrap_or(0.0);
 
         table.add_row(vec![
             Cell::new(truncate_url(url, 60)),
@@ -650,11 +764,11 @@ fn render_url_lines(payload: &serde_json::Value, key: &str) {
 
 fn status_colour(status: &str) -> Cell {
     match status {
-        "active"     => Cell::new(status).fg(Color::Green),
+        "active" => Cell::new(status).fg(Color::Green),
         "suspicious" => Cell::new(status).fg(Color::Yellow),
-        "malicious"  => Cell::new(status).fg(Color::Red),
-        "down"       => Cell::new(status).fg(Color::DarkGrey),
-        _            => Cell::new(status),
+        "malicious" => Cell::new(status).fg(Color::Red),
+        "down" => Cell::new(status).fg(Color::DarkGrey),
+        _ => Cell::new(status),
     }
 }
 

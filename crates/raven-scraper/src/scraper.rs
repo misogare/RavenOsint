@@ -44,17 +44,17 @@ const CAPTURED_HEADERS: &[&str] = &[
 /// - Validates TLS via `rustls` (invalid certs → request error).
 pub struct RavenScraper {
     /// One `reqwest::Client` per configured proxy (or exactly one if no proxies).
-    clients:      Vec<Client>,
-    client_idx:   AtomicUsize,
+    clients: Vec<Client>,
+    client_idx: AtomicUsize,
     rate_limiter: Arc<DomainRateLimiter>,
-    user_agents:  Vec<String>,
-    ua_idx:       AtomicUsize,
+    user_agents: Vec<String>,
+    ua_idx: AtomicUsize,
 }
 
 impl RavenScraper {
     /// Build a new scraper from `ScraperConfig`.
     pub fn new(cfg: &ScraperConfig) -> Result<Self, OsintError> {
-        let timeout   = std::time::Duration::from_secs(cfg.timeout_secs);
+        let timeout = std::time::Duration::from_secs(cfg.timeout_secs);
         let redirects = cfg.max_redirects as usize;
 
         // Build one client per proxy entry (empty list → single no-proxy client).
@@ -75,10 +75,10 @@ impl RavenScraper {
                 .referer(false);
 
             if let Some(url) = proxy {
-                b = b.proxy(
-                    Proxy::all(url)
-                        .map_err(|e| OsintError::Config(format!("invalid proxy URL '{url}': {e}")))?,
-                );
+                b =
+                    b.proxy(Proxy::all(url).map_err(|e| {
+                        OsintError::Config(format!("invalid proxy URL '{url}': {e}"))
+                    })?);
             }
 
             b.build().map_err(OsintError::Http)
@@ -94,10 +94,10 @@ impl RavenScraper {
 
         Ok(Self {
             clients,
-            client_idx:   AtomicUsize::new(0),
+            client_idx: AtomicUsize::new(0),
             rate_limiter: Arc::new(DomainRateLimiter::new(cfg.rate_rpm)),
-            user_agents:  cfg.user_agents.clone(),
-            ua_idx:       AtomicUsize::new(0),
+            user_agents: cfg.user_agents.clone(),
+            ua_idx: AtomicUsize::new(0),
         })
     }
 
@@ -134,24 +134,24 @@ impl ScraperPlugin for RavenScraper {
     async fn scrape(&self, url: &str) -> Result<ScraperOutput, OsintError> {
         let parsed = Url::parse(url).map_err(OsintError::InvalidUrl)?;
         let scheme = parsed.scheme().to_string();
-        let domain = parsed
-            .host_str()
-            .unwrap_or("unknown")
-            .to_string();
+        let domain = parsed.host_str().unwrap_or("unknown").to_string();
 
         // Enforce per-domain rate limit.
         self.rate_limiter.acquire(&domain).await;
 
-        let ua     = self.next_ua();
+        let ua = self.next_ua();
         let client = self.next_client();
 
         debug!(url = %url, ua = %ua, "scraping");
 
-        let t0  = Instant::now();
+        let t0 = Instant::now();
         let res = client
             .get(url)
             .header("User-Agent", ua)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            )
             .header("Accept-Language", "en-US,en;q=0.5")
             .send()
             .await
@@ -159,7 +159,7 @@ impl ScraperPlugin for RavenScraper {
         let latency_ms = t0.elapsed().as_millis() as u64;
 
         let status_code = res.status().as_u16();
-        let final_url   = res.url().to_string();
+        let final_url = res.url().to_string();
 
         // Capture selected response headers.
         let mut headers = std::collections::HashMap::new();
@@ -171,10 +171,7 @@ impl ScraperPlugin for RavenScraper {
             }
         }
 
-        let content_type = headers
-            .get("content-type")
-            .cloned()
-            .unwrap_or_default();
+        let content_type = headers.get("content-type").cloned().unwrap_or_default();
 
         // Consume body.
         let raw_body = res.text().await.map_err(OsintError::Http)?;
@@ -200,17 +197,17 @@ impl ScraperPlugin for RavenScraper {
         );
 
         Ok(ScraperOutput {
-            job_id:          Uuid::new_v4(), // caller should overwrite with real job id
-            url:             url.to_string(),
+            job_id: Uuid::new_v4(), // caller should overwrite with real job id
+            url: url.to_string(),
             final_url,
             status_code,
             headers,
             body_text,
             ssl_valid,
             ssl_expiry_days: None, // TODO P1: TLS cert introspection
-            ssl_issuer:      None, // TODO P1: TLS cert introspection
+            ssl_issuer: None,      // TODO P1: TLS cert introspection
             latency_ms,
-            scraped_at:      Utc::now(),
+            scraped_at: Utc::now(),
         })
     }
 }

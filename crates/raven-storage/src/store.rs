@@ -7,13 +7,16 @@ use uuid::Uuid;
 /// Pagination parameters for list queries.
 #[derive(Debug, Clone)]
 pub struct ListParams {
-    pub limit:  i64,
+    pub limit: i64,
     pub offset: i64,
 }
 
 impl Default for ListParams {
     fn default() -> Self {
-        Self { limit: 50, offset: 0 }
+        Self {
+            limit: 50,
+            offset: 0,
+        }
     }
 }
 
@@ -44,7 +47,10 @@ pub trait ResultStore: Send + Sync + 'static {
     async fn find_discovery_by_id(&self, job_id: Uuid) -> Result<DiscoveryResult, OsintError>;
 
     /// List discovery results with simple pagination.
-    async fn list_discoveries(&self, params: ListParams) -> Result<Vec<DiscoveryResult>, OsintError>;
+    async fn list_discoveries(
+        &self,
+        params: ListParams,
+    ) -> Result<Vec<DiscoveryResult>, OsintError>;
 
     /// Total number of stored discovery results.
     async fn discovery_count(&self) -> Result<i64, OsintError>;

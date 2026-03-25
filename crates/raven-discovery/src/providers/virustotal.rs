@@ -14,8 +14,8 @@ use crate::normalize::{extract_domain, normalize_url};
 /// Free limits: 4 req/min, 500 req/day.
 /// Uses: GET /domains/{domain}/urls  and  GET /domains/{domain} (subdomains)
 pub struct VirusTotalProvider {
-    client:   Client,
-    api_key:  String,
+    client: Client,
+    api_key: String,
     base_url: String,
 }
 
@@ -42,20 +42,20 @@ struct VtUrlItem {
 
 #[derive(Debug, Deserialize)]
 struct VtUrlAttributes {
-    url:                     Option<String>,
-    title:                   Option<String>,
-    last_final_url:          Option<String>,
+    url: Option<String>,
+    title: Option<String>,
+    last_final_url: Option<String>,
     #[allow(dead_code)]
     last_http_response_code: Option<u16>,
-    times_submitted:         Option<u64>,
-    last_analysis_stats:     Option<VtStats>,
+    times_submitted: Option<u64>,
+    last_analysis_stats: Option<VtStats>,
 }
 
 #[derive(Debug, Deserialize)]
 struct VtStats {
-    malicious:  Option<u64>,
+    malicious: Option<u64>,
     suspicious: Option<u64>,
-    harmless:   Option<u64>,
+    harmless: Option<u64>,
     undetected: Option<u64>,
 }
 
@@ -73,11 +73,11 @@ struct VtDomainData {
 struct VtDomainAttributes {
     #[allow(dead_code)]
     last_analysis_stats: Option<VtStats>,
-    reputation:          Option<i64>,
+    reputation: Option<i64>,
     #[serde(default)]
-    subdomains:          Vec<String>,
+    subdomains: Vec<String>,
     #[allow(dead_code)]
-    last_dns_records:    Option<Vec<VtDnsRecord>>,
+    last_dns_records: Option<Vec<VtDnsRecord>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -94,7 +94,7 @@ struct VtMeta {
     #[allow(dead_code)]
     cursor: Option<String>,
     #[allow(dead_code)]
-    count:  Option<u64>,
+    count: Option<u64>,
 }
 
 // ─── implementation ───────────────────────────────────────────────────────────
@@ -108,31 +108,48 @@ impl VirusTotalProvider {
         }
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(config.timeout_secs))
-            .build().map_err(OsintError::Http)?;
+            .build()
+            .map_err(OsintError::Http)?;
         Ok(Self {
             client,
-            api_key:  config.virus_total.api_key.clone(),
-            base_url: config.virus_total.base_url.trim_end_matches('/').to_string(),
+            api_key: config.virus_total.api_key.clone(),
+            base_url: config
+                .virus_total
+                .base_url
+                .trim_end_matches('/')
+                .to_string(),
         })
     }
 
     fn confidence_from_stats(stats: &Option<VtStats>) -> f32 {
-        let s = match stats { Some(s) => s, None => return 0.5 };
-        let mal  = s.malicious.unwrap_or(0)  as f32;
-        let sus  = s.suspicious.unwrap_or(0) as f32;
-        let total = mal + sus
-            + s.harmless.unwrap_or(0)   as f32
-            + s.undetected.unwrap_or(0) as f32;
-        if total == 0.0 { return 0.5; }
+        let s = match stats {
+            Some(s) => s,
+            None => return 0.5,
+        };
+        let mal = s.malicious.unwrap_or(0) as f32;
+        let sus = s.suspicious.unwrap_or(0) as f32;
+        let total = mal + sus + s.harmless.unwrap_or(0) as f32 + s.undetected.unwrap_or(0) as f32;
+        if total == 0.0 {
+            return 0.5;
+        }
         ((mal + sus) / total * 0.9 + 0.1).clamp(0.1, 1.0)
     }
 
-    async fn fetch_domain_urls(&self, domain: &str, limit: usize, request: &DiscoveryRequest) -> Result<Vec<DiscoveredUrl>, OsintError> {
+    async fn fetch_domain_urls(
+        &self,
+        domain: &str,
+        limit: usize,
+        request: &DiscoveryRequest,
+    ) -> Result<Vec<DiscoveredUrl>, OsintError> {
         let endpoint = format!("{}/domains/{}/urls", self.base_url, domain);
-        let response = self.client.get(&endpoint)
+        let response = self
+            .client
+            .get(&endpoint)
             .header("x-apikey", &self.api_key)
             .query(&[("limit", limit.to_string())])
-            .send().await.map_err(OsintError::Http)?;
+            .send()
+            .await
+            .map_err(OsintError::Http)?;
 
         if response.status().as_u16() == 403 {
             // Public keys can receive 403 on relationship endpoints reserved for premium.
@@ -145,28 +162,58 @@ impl VirusTotalProvider {
             return Ok(vec![]);
         }
 
-        let parsed = response.error_for_status().map_err(OsintError::Http)?
-            .json::<VtUrlsResponse>().await.map_err(OsintError::Http)?;
+        let parsed = response
+            .error_for_status()
+            .map_err(OsintError::Http)?
+            .json::<VtUrlsResponse>()
+            .await
+            .map_err(OsintError::Http)?;
 
         let mut urls = Vec::new();
         for (rank, item) in parsed.data.unwrap_or_default().iter().enumerate() {
-            let attrs = match &item.attributes { Some(a) => a, None => continue };
-            let raw = attrs.last_final_url.as_deref().or(attrs.url.as_deref()).unwrap_or_default();
-            if raw.is_empty() { continue; }
-            let normalized = match normalize_url(raw) { Ok(u) => u, Err(_) => continue };
+            let attrs = match &item.attributes {
+                Some(a) => a,
+                None => continue,
+            };
+            let raw = attrs
+                .last_final_url
+                .as_deref()
+                .or(attrs.url.as_deref())
+                .unwrap_or_default();
+            if raw.is_empty() {
+                continue;
+            }
+            let normalized = match normalize_url(raw) {
+                Ok(u) => u,
+                Err(_) => continue,
+            };
 
-            let mal = attrs.last_analysis_stats.as_ref().and_then(|s| s.malicious).unwrap_or(0);
-            let sus = attrs.last_analysis_stats.as_ref().and_then(|s| s.suspicious).unwrap_or(0);
+            let mal = attrs
+                .last_analysis_stats
+                .as_ref()
+                .and_then(|s| s.malicious)
+                .unwrap_or(0);
+            let sus = attrs
+                .last_analysis_stats
+                .as_ref()
+                .and_then(|s| s.suspicious)
+                .unwrap_or(0);
 
             urls.push(DiscoveredUrl {
                 domain: extract_domain(&normalized).unwrap_or_default(),
-                url: normalized, title: attrs.title.clone(),
-                snippet: Some(format!("VirusTotal: {} malicious, {} suspicious | submitted {} times",
-                    mal, sus, attrs.times_submitted.unwrap_or(0))),
-                provider:       DiscoveryProviderKind::VirusTotal,
+                url: normalized,
+                title: attrs.title.clone(),
+                snippet: Some(format!(
+                    "VirusTotal: {} malicious, {} suspicious | submitted {} times",
+                    mal,
+                    sus,
+                    attrs.times_submitted.unwrap_or(0)
+                )),
+                provider: DiscoveryProviderKind::VirusTotal,
                 discovery_type: DiscoveryType::VirusTotalPivot,
-                source_query:   request.query.clone(), source_url: None,
-                rank:       Some((rank + 1) as u32),
+                source_query: request.query.clone(),
+                source_url: None,
+                rank: Some((rank + 1) as u32),
                 confidence: Self::confidence_from_stats(&attrs.last_analysis_stats),
                 discovered_at: Utc::now(),
             });
@@ -174,21 +221,36 @@ impl VirusTotalProvider {
         Ok(urls)
     }
 
-    async fn fetch_subdomains(&self, domain: &str, request: &DiscoveryRequest) -> Result<Vec<DiscoveredUrl>, OsintError> {
+    async fn fetch_subdomains(
+        &self,
+        domain: &str,
+        request: &DiscoveryRequest,
+    ) -> Result<Vec<DiscoveredUrl>, OsintError> {
         let endpoint = format!("{}/domains/{}", self.base_url, domain);
-        let response = self.client.get(&endpoint)
+        let response = self
+            .client
+            .get(&endpoint)
             .header("x-apikey", &self.api_key)
-            .send().await.map_err(OsintError::Http)?;
+            .send()
+            .await
+            .map_err(OsintError::Http)?;
 
         if matches!(response.status().as_u16(), 429 | 403 | 401) {
             tracing::warn!(status = %response.status(), "virustotal: rate limit or auth issue");
             return Ok(vec![]);
         }
 
-        let parsed = response.error_for_status().map_err(OsintError::Http)?
-            .json::<VtDomainResponse>().await.map_err(OsintError::Http)?;
+        let parsed = response
+            .error_for_status()
+            .map_err(OsintError::Http)?
+            .json::<VtDomainResponse>()
+            .await
+            .map_err(OsintError::Http)?;
 
-        let attrs = match parsed.data.and_then(|d| d.attributes) { Some(a) => a, None => return Ok(vec![]) };
+        let attrs = match parsed.data.and_then(|d| d.attributes) {
+            Some(a) => a,
+            None => return Ok(vec![]),
+        };
         let reputation = attrs.reputation.unwrap_or(0);
         let mut urls = Vec::new();
 
@@ -199,7 +261,9 @@ impl VirusTotalProvider {
                 domain: extract_domain(&normalized).unwrap_or_else(|| domain.to_string()),
                 url: normalized,
                 title: None,
-                snippet: Some(format!("VirusTotal domain lookup | reputation: {reputation}")),
+                snippet: Some(format!(
+                    "VirusTotal domain lookup | reputation: {reputation}"
+                )),
                 provider: DiscoveryProviderKind::VirusTotal,
                 discovery_type: DiscoveryType::VirusTotalPivot,
                 source_query: request.query.clone(),
@@ -211,15 +275,22 @@ impl VirusTotalProvider {
         }
 
         for (rank, subdomain) in attrs.subdomains.iter().enumerate() {
-            let normalized = match normalize_url(&format!("https://{subdomain}/")) { Ok(u) => u, Err(_) => continue };
+            let normalized = match normalize_url(&format!("https://{subdomain}/")) {
+                Ok(u) => u,
+                Err(_) => continue,
+            };
             urls.push(DiscoveredUrl {
                 domain: extract_domain(&normalized).unwrap_or_default(),
-                url: normalized, title: None,
-                snippet: Some(format!("VirusTotal subdomain of {domain} | reputation: {reputation}")),
-                provider:       DiscoveryProviderKind::VirusTotal,
+                url: normalized,
+                title: None,
+                snippet: Some(format!(
+                    "VirusTotal subdomain of {domain} | reputation: {reputation}"
+                )),
+                provider: DiscoveryProviderKind::VirusTotal,
                 discovery_type: DiscoveryType::VirusTotalPivot,
-                source_query:   request.query.clone(), source_url: None,
-                rank:       Some((rank + 2) as u32),
+                source_query: request.query.clone(),
+                source_url: None,
+                rank: Some((rank + 2) as u32),
                 confidence: if reputation < 0 { 0.9 } else { 0.5 },
                 discovered_at: Utc::now(),
             });
@@ -237,21 +308,30 @@ impl VirusTotalProvider {
 
         let mut urls = url_res.unwrap_or_default();
         for sub in sub_res.unwrap_or_default() {
-            if urls.len() >= request.limit { break; }
-            if !urls.iter().any(|u| u.url == sub.url) { urls.push(sub); }
+            if urls.len() >= request.limit {
+                break;
+            }
+            if !urls.iter().any(|u| u.url == sub.url) {
+                urls.push(sub);
+            }
         }
         urls.truncate(request.limit);
 
         Ok(DiscoveryResult {
-            job_id: request.job_id, request: request.clone(),
-            total_discovered: urls.len(), urls, completed_at: Utc::now(),
+            job_id: request.job_id,
+            request: request.clone(),
+            total_discovered: urls.len(),
+            urls,
+            completed_at: Utc::now(),
         })
     }
 }
 
 #[async_trait]
 impl SearchProvider for VirusTotalProvider {
-    fn name(&self) -> &str { "virustotal" }
+    fn name(&self) -> &str {
+        "virustotal"
+    }
     async fn search(&self, req: &DiscoveryRequest) -> Result<Vec<DiscoveredUrl>, OsintError> {
         self.do_search(req).await.map(|r| r.urls)
     }
@@ -259,7 +339,9 @@ impl SearchProvider for VirusTotalProvider {
 
 #[async_trait]
 impl DiscoveryPlugin for VirusTotalProvider {
-    fn name(&self) -> &str { "virustotal" }
+    fn name(&self) -> &str {
+        "virustotal"
+    }
     async fn discover(&self, req: &DiscoveryRequest) -> Result<DiscoveryResult, OsintError> {
         self.do_search(req).await
     }
@@ -273,27 +355,45 @@ mod tests {
     fn config() -> DiscoveryConfig {
         DiscoveryConfig {
             virus_total: DiscoveryProviderConfig {
-                enabled: true, base_url: "https://www.virustotal.com/api/v3".into(),
-                api_key: "test-key".into(), api_secret: String::new(),
+                enabled: true,
+                base_url: "https://www.virustotal.com/api/v3".into(),
+                api_key: "test-key".into(),
+                api_secret: String::new(),
             },
             ..DiscoveryConfig::default()
         }
     }
 
-    #[test] fn fails_if_key_empty() {
-        let mut c = config(); c.virus_total.api_key = String::new();
+    #[test]
+    fn fails_if_key_empty() {
+        let mut c = config();
+        c.virus_total.api_key = String::new();
         assert!(VirusTotalProvider::new(&c).is_err());
     }
-    #[test] fn fails_if_disabled() {
-        let mut c = config(); c.virus_total.enabled = false;
+    #[test]
+    fn fails_if_disabled() {
+        let mut c = config();
+        c.virus_total.enabled = false;
         assert!(VirusTotalProvider::new(&c).is_ok());
     }
-    #[test] fn high_confidence_for_malicious() {
-        let stats = Some(VtStats { malicious: Some(50), suspicious: Some(5), harmless: Some(0), undetected: Some(5) });
+    #[test]
+    fn high_confidence_for_malicious() {
+        let stats = Some(VtStats {
+            malicious: Some(50),
+            suspicious: Some(5),
+            harmless: Some(0),
+            undetected: Some(5),
+        });
         assert!(VirusTotalProvider::confidence_from_stats(&stats) > 0.8);
     }
-    #[test] fn low_confidence_for_clean() {
-        let stats = Some(VtStats { malicious: Some(0), suspicious: Some(0), harmless: Some(60), undetected: Some(10) });
+    #[test]
+    fn low_confidence_for_clean() {
+        let stats = Some(VtStats {
+            malicious: Some(0),
+            suspicious: Some(0),
+            harmless: Some(60),
+            undetected: Some(10),
+        });
         assert!(VirusTotalProvider::confidence_from_stats(&stats) < 0.3);
     }
 }

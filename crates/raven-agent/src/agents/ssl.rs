@@ -36,7 +36,7 @@ impl AgentPlugin for SslAgent {
 
         // Check for expiry proximity (None in P0 — cert introspection is P1).
         let expiry_warning = match input.ssl_expiry_days {
-            Some(days) if days < 7  => Some("critical — cert expires in < 7 days"),
+            Some(days) if days < 7 => Some("critical — cert expires in < 7 days"),
             Some(days) if days < 30 => Some("warning — cert expires in < 30 days"),
             _ => None,
         };
@@ -61,11 +61,14 @@ impl AgentPlugin for SslAgent {
         let mut report = AgentReport::new("ssl")
             .passed(passed)
             .delta(delta)
-            .detail("https",        "true")
-            .detail("cert_valid",   cert_valid.to_string())
-            .detail("hsts",         has_hsts.to_string())
-            .detail("issuer",       input.ssl_issuer.clone().unwrap_or_else(|| "unknown".into()))
-            .detail("expiry_days",  expiry_days_str);
+            .detail("https", "true")
+            .detail("cert_valid", cert_valid.to_string())
+            .detail("hsts", has_hsts.to_string())
+            .detail(
+                "issuer",
+                input.ssl_issuer.clone().unwrap_or_else(|| "unknown".into()),
+            )
+            .detail("expiry_days", expiry_days_str);
 
         if let Some(warn) = expiry_warning {
             report = report.detail("expiry_warning", warn.to_string());
@@ -84,17 +87,17 @@ mod tests {
 
     fn make_output(url: &str, ssl_valid: Option<bool>) -> ScraperOutput {
         ScraperOutput {
-            job_id:          Uuid::new_v4(),
-            url:             url.into(),
-            final_url:       url.into(),
-            status_code:     200,
-            headers:         HashMap::new(),
-            body_text:       String::new(),
+            job_id: Uuid::new_v4(),
+            url: url.into(),
+            final_url: url.into(),
+            status_code: 200,
+            headers: HashMap::new(),
+            body_text: String::new(),
             ssl_valid,
             ssl_expiry_days: None,
-            ssl_issuer:      None,
-            latency_ms:      100,
-            scraped_at:      Utc::now(),
+            ssl_issuer: None,
+            latency_ms: 100,
+            scraped_at: Utc::now(),
         }
     }
 

@@ -9,7 +9,7 @@
 #   sqlite://raven.db                  — lightweight default
 #   postgres://user:pass@localhost/raven — persistent server
 #   duckdb://raven.duckdb              — analytical queries (fast aggregations)
-url = "duckdb://raven.duckdb"
+url = "sqlite://raven.db"
 
 [scraper]
 rate_rpm         = 10
@@ -61,6 +61,21 @@ model       = "deepseek-chat"
 api_key     = ""    # RAVEN__LLM__API_KEY
 max_tokens  = 1024
 temperature = 0.2
+
+# Supported providers:
+# - deepseek        (OpenAI-compatible)
+# - openai          (OpenAI API)
+# - kimi            (Moonshot)
+# - github_copilot  (GitHub Models / Copilot)
+# - gemini          (Google Gemini native API)
+# - claude          (Anthropic native API)
+#
+# Provider-specific examples:
+# openai:         provider="openai"         base_url="https://api.openai.com/v1"                 model="gpt-4o-mini"
+# kimi:           provider="kimi"           base_url="https://api.moonshot.cn/v1"                 model="moonshot-v1-8k"
+# github_copilot: provider="github_copilot" base_url="https://models.inference.ai.azure.com"     model="gpt-4o-mini"
+# gemini:         provider="gemini"         base_url="https://generativelanguage.googleapis.com/v1beta" model="gemini-1.5-flash"
+# claude:         provider="claude"         base_url="https://api.anthropic.com/v1"              model="claude-3-5-sonnet-latest"
 
 [api]
 host = "127.0.0.1"

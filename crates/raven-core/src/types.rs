@@ -25,11 +25,11 @@ pub enum SiteStatus {
 impl std::fmt::Display for SiteStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SiteStatus::Active     => write!(f, "Active"),
+            SiteStatus::Active => write!(f, "Active"),
             SiteStatus::Suspicious => write!(f, "Suspicious"),
-            SiteStatus::Down       => write!(f, "Down"),
-            SiteStatus::Malicious  => write!(f, "Malicious"),
-            SiteStatus::Unknown    => write!(f, "Unknown"),
+            SiteStatus::Down => write!(f, "Down"),
+            SiteStatus::Malicious => write!(f, "Malicious"),
+            SiteStatus::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -154,10 +154,10 @@ pub struct OsintTarget {
 impl OsintTarget {
     pub fn new(url: impl Into<String>) -> Self {
         Self {
-            id:           Uuid::new_v4(),
-            url:          url.into(),
-            tags:         Vec::new(),
-            metadata:     HashMap::new(),
+            id: Uuid::new_v4(),
+            url: url.into(),
+            tags: Vec::new(),
+            metadata: HashMap::new(),
             submitted_at: Utc::now(),
         }
     }
@@ -175,24 +175,24 @@ impl OsintTarget {
 /// Everything the scraper extracts from a single HTTP fetch.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ScraperOutput {
-    pub job_id:       Uuid,
-    pub url:          String,
+    pub job_id: Uuid,
+    pub url: String,
     /// Final URL after redirect chain.
-    pub final_url:    String,
-    pub status_code:  u16,
+    pub final_url: String,
+    pub status_code: u16,
     /// Selected response headers (Content-Type, Server, X-Frame-Options, etc.)
-    pub headers:      HashMap<String, String>,
+    pub headers: HashMap<String, String>,
     /// Plain-text body (HTML stripped or raw if JSON/XML).
-    pub body_text:    String,
+    pub body_text: String,
     /// Whether TLS was used and whether the certificate is currently valid.
-    pub ssl_valid:    Option<bool>,
+    pub ssl_valid: Option<bool>,
     /// Days until SSL cert expiry (None if HTTP or cert parse failed).
     pub ssl_expiry_days: Option<i64>,
     /// TLS issuer organisation string.
-    pub ssl_issuer:   Option<String>,
+    pub ssl_issuer: Option<String>,
     /// Round-trip time in milliseconds.
-    pub latency_ms:   u64,
-    pub scraped_at:   DateTime<Utc>,
+    pub latency_ms: u64,
+    pub scraped_at: DateTime<Utc>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,22 +202,22 @@ pub struct ScraperOutput {
 /// Result produced by a single validation agent.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentReport {
-    pub agent_name:        String,
+    pub agent_name: String,
     /// Whether the agent's check passed (true = looks healthy/benign).
-    pub passed:            bool,
+    pub passed: bool,
     /// Human-readable findings. Key = finding name, value = detail string.
-    pub details:           HashMap<String, String>,
+    pub details: HashMap<String, String>,
     /// Amount by which this agent adjusts the global confidence score.
     /// Positive delta = more confident the site is legitimate.
-    pub confidence_delta:  f32,
+    pub confidence_delta: f32,
 }
 
 impl AgentReport {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            agent_name:       name.into(),
-            passed:           false,
-            details:          HashMap::new(),
+            agent_name: name.into(),
+            passed: false,
+            details: HashMap::new(),
             confidence_delta: 0.0,
         }
     }
@@ -245,29 +245,29 @@ impl AgentReport {
 /// Input context passed to the LLM for verification.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LlmContext {
-    pub job_id:         Uuid,
-    pub url:            String,
+    pub job_id: Uuid,
+    pub url: String,
     /// Truncated body text (first ~4 000 chars / ~1 000 tokens).
-    pub body_snippet:   String,
+    pub body_snippet: String,
     /// Brief summary of agent findings, injected into the prompt.
-    pub agent_summary:  String,
+    pub agent_summary: String,
 }
 
 /// Structured verdict returned by the LLM.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LlmVerdict {
-    pub status:     SiteStatus,
+    pub status: SiteStatus,
     /// 0.0 (no confidence) → 1.0 (fully confident).
     pub confidence: f32,
-    pub reasoning:  String,
+    pub reasoning: String,
 }
 
 impl Default for LlmVerdict {
     fn default() -> Self {
         Self {
-            status:     SiteStatus::Unknown,
+            status: SiteStatus::Unknown,
             confidence: 0.0,
-            reasoning:  "LLM not invoked".into(),
+            reasoning: "LLM not invoked".into(),
         }
     }
 }
@@ -279,16 +279,16 @@ impl Default for LlmVerdict {
 /// Aggregated result for a single OSINT job, stored and returned via API.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ValidationResult {
-    pub job_id:         Uuid,
-    pub target:         OsintTarget,
+    pub job_id: Uuid,
+    pub target: OsintTarget,
     pub scraper_output: Option<ScraperOutput>,
-    pub agent_reports:  Vec<AgentReport>,
-    pub llm_verdict:    LlmVerdict,
+    pub agent_reports: Vec<AgentReport>,
+    pub llm_verdict: LlmVerdict,
     /// Final status — last-writer-wins: LLM overrides agents, agents override scraper.
-    pub status:         SiteStatus,
+    pub status: SiteStatus,
     /// Aggregate confidence 0.0–1.0.
-    pub confidence:     f32,
-    pub completed_at:   DateTime<Utc>,
+    pub confidence: f32,
+    pub completed_at: DateTime<Utc>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -301,12 +301,30 @@ pub struct ValidationResult {
 pub enum BusEvent {
     TargetQueued(OsintTarget),
     DiscoveryQueued(DiscoveryRequest),
-    DiscoveryUrlsFound { job_id: Uuid, urls: Vec<DiscoveredUrl> },
+    DiscoveryUrlsFound {
+        job_id: Uuid,
+        urls: Vec<DiscoveredUrl>,
+    },
     DiscoveryComplete(DiscoveryResult),
-    DiscoveryFailed { job_id: Uuid, error: String },
+    DiscoveryFailed {
+        job_id: Uuid,
+        error: String,
+    },
     ScrapeDone(ScraperOutput),
-    AgentDone { job_id: Uuid, reports: Vec<AgentReport> },
-    LlmVerified { job_id: Uuid, verdict: LlmVerdict },
-    PipelineComplete { job_id: Uuid, result: ValidationResult },
-    PipelineFailed { job_id: Uuid, error: String },
+    AgentDone {
+        job_id: Uuid,
+        reports: Vec<AgentReport>,
+    },
+    LlmVerified {
+        job_id: Uuid,
+        verdict: LlmVerdict,
+    },
+    PipelineComplete {
+        job_id: Uuid,
+        result: ValidationResult,
+    },
+    PipelineFailed {
+        job_id: Uuid,
+        error: String,
+    },
 }

@@ -60,20 +60,33 @@ Respond with ONLY this JSON structure:
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Render the verification prompt with the given variables.
-pub fn render_verify(url: &str, agent_summary: &str, body_snippet: &str) -> Result<String, OsintError> {
+pub fn render_verify(
+    url: &str,
+    agent_summary: &str,
+    body_snippet: &str,
+) -> Result<String, OsintError> {
     render(VERIFY_TEMPLATE, url, agent_summary, body_snippet)
 }
 
 /// Render the threat-analysis prompt with the given variables.
-pub fn render_threat(url: &str, agent_summary: &str, body_snippet: &str) -> Result<String, OsintError> {
+pub fn render_threat(
+    url: &str,
+    agent_summary: &str,
+    body_snippet: &str,
+) -> Result<String, OsintError> {
     render(THREAT_TEMPLATE, url, agent_summary, body_snippet)
 }
 
-fn render(template: &str, url: &str, agent_summary: &str, body_snippet: &str) -> Result<String, OsintError> {
+fn render(
+    template: &str,
+    url: &str,
+    agent_summary: &str,
+    body_snippet: &str,
+) -> Result<String, OsintError> {
     let mut ctx = Context::new();
-    ctx.insert("url",           url);
+    ctx.insert("url", url);
     ctx.insert("agent_summary", agent_summary);
-    ctx.insert("body_snippet",  body_snippet);
+    ctx.insert("body_snippet", body_snippet);
 
     // `Tera::one_off` renders a single template string without a file system.
     Tera::one_off(template, &ctx, /* autoescape */ false)

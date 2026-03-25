@@ -104,7 +104,10 @@ pub async fn submit_discovery(
                 .await
                 .map(|_| ())
         } else {
-            workflow.discover(request_for_task.clone()).await.map(|_| ())
+            workflow
+                .discover(request_for_task.clone())
+                .await
+                .map(|_| ())
         };
 
         if let Err(error) = outcome {
@@ -143,7 +146,11 @@ pub async fn list_discoveries(
         offset: query.offset.max(0),
     };
 
-    let total = state.store.discovery_count().await.map_err(internal_error)?;
+    let total = state
+        .store
+        .discovery_count()
+        .await
+        .map_err(internal_error)?;
     let items = state
         .store
         .list_discoveries(params.clone())

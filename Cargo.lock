@@ -2975,6 +2975,7 @@ dependencies = [
  "async-openai",
  "async-trait",
  "raven-core",
+ "reqwest",
  "serde",
  "serde_json",
  "tera",
